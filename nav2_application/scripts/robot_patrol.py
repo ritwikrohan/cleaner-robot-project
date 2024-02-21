@@ -21,7 +21,8 @@ class RobotStateMachine(Node):
         while not self.client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.req = GoToLoading.Request()
-        self.publisher_ = self.create_publisher(Twist, "/diffbot_base_controller/cmd_vel_unstamped", 10)
+        # self.publisher_ = self.create_publisher(Twist, "/diffbot_base_controller/cmd_vel_unstamped", 10)
+        self.publisher_ = self.create_publisher(Twist, "/cmd_vel", 1)
         self.local_table_footprint_publisher = self.create_publisher(Polygon,"/local_costmap/footprint", 10)
         self.global_table_footprint_publisher = self.create_publisher(Polygon,"/global_costmap/footprint", 10)
         timer_period = 0.5  # seconds
@@ -36,7 +37,8 @@ class RobotStateMachine(Node):
         # THESE ARE DUMMY VALUES. I NEED TO CHANGE IT ACCORDING TO THE MAP. Stages need to be added.
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
-            "loading_stage": [1.2, -0.261939, 0.8495789,0.5274615],#0.7870985, 0.6168274],
+            "loading_stage": [1.2, -0.5, 0.707,0.707],
+            # "loading_stage": [1.2, -0.5, 0.8495789,0.5274615],#0.7870985, 0.6168274],
             "final_stage": [0.170, -3.131, 0.6087614, 0.7933533],
             "back_to_initial": [-0.190,0.142 ,-0.1246747,0.9921977]}
         self.stage_number = 1
@@ -250,19 +252,19 @@ class RobotStateMachine(Node):
                 
             elif self.stage_number == 2:
                 self.go_to_pose(self.robot_stage, "loading_stage")
-                self.goal_reached = True
+                # self.goal_reached = True
                 self.stage_number = 3
-            # elif self.stage_number==3:
-            #     print("Loading stage reached and proceeding to attach the table slowly...")
-            #     response = self.send_request(True)
-            #     # print(response)
-            #     self.publish_footprint_table()
-            #     self.stage_number=4
-            # elif self.stage_number==4:
-            #     print("table attached, Backing up slowly and Proceeding to final stage ...")
-            #     self.with_table_backup()
-            #     self.stage_number=5
-            #     self.goal_reached = True
+            elif self.stage_number==3:
+                print("Loading stage reached and proceeding to attach the table slowly...")
+                response = self.send_request(True)
+                # print(response)
+                self.publish_footprint_table()
+                self.stage_number=4
+            elif self.stage_number==4:
+                print("table attached, Backing up slowly and Proceeding to final stage ...")
+                self.with_table_backup()
+                self.stage_number=5
+                self.goal_reached = True
             # elif self.stage_number==5:
             #     print("Proceeding to final stage...")
             #     self.go_to_pose(self.robot_stage, "final_stage")

@@ -41,7 +41,8 @@ class FinalApproachService : public rclcpp::Node
             options_centroid.callback_group = centroid_callback_group_;
             centroid_sub_ = this->create_subscription<slg_msgs::msg::Centroids>("/segments/centroids", 10, std::bind(&FinalApproachService::centroidCallback, this, std::placeholders::_1), options_centroid);
             elevator_pub_ = this->create_publisher<std_msgs::msg::String>("/elevator_up", 1);
-            robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/diffbot_base_controller/cmd_vel_unstamped", 1);
+            // robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/diffbot_base_controller/cmd_vel_unstamped", 1);
+            robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
             tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
             tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
             tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -61,8 +62,8 @@ class FinalApproachService : public rclcpp::Node
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr robot_cmd_vel_publisher;
         int firstSetLastValue;
         int secondSetFirstValue;
-        double kp_yaw = 0.4;//0.7;
-        double kp_orient = 2.0;//0.7;
+        double kp_yaw = 0.8;//0.7;
+        double kp_orient = 5.0;//0.7;
         double kp_distance = 0.5;
         double x;
         double y;
@@ -154,6 +155,7 @@ class FinalApproachService : public rclcpp::Node
             }
             RCLCPP_INFO(this->get_logger(),"map_x: %f", this->map_x);
             RCLCPP_INFO(this->get_logger(),"map_y: %f", this->map_y);
+            // publishNewFrame(1.000980, 0.785102);
             publishNewFrame(this->map_x, this->map_y);
         }
 
@@ -255,19 +257,19 @@ class FinalApproachService : public rclcpp::Node
             bool should_set_final_goal = false;
             // bool should_set_yaw_goal = false;
             // bool yaw_after_stopping =false;
-            double maxAllowedDifference = 0.3;  // Adjust this threshold based on your requirement
+            double maxAllowedDifference = 0.5;  // Adjust this threshold based on your requirement
             double lastPublishedX = this->x;
             double lastPublishedY = this->y;
             rclcpp::Rate loop_rate(100);
             while(!final_goal)
             {   
                 // Check if the difference is not significant compared to the last published values
-                // if (std::abs(this->x - lastPublishedX) <= maxAllowedDifference && std::abs(this->y - lastPublishedY) <= maxAllowedDifference) {
-                //     publishStaticTransform(this->x, this->y);
-                //     // Update last published positions immediately after publishing
-                //     lastPublishedX = this->x;
-                //     lastPublishedY = this->y;
-                // }
+                if (std::abs(this->x - lastPublishedX) <= maxAllowedDifference && std::abs(this->y - lastPublishedY) <= maxAllowedDifference) {
+                    publishStaticTransform(this->x, this->y);
+                    // Update last published positions immediately after publishing
+                    lastPublishedX = this->x;
+                    lastPublishedY = this->y;
+                }
                 // publishStaticTransform(this->x, this->y);
                 // final_goal = true;
                 if ((tf_buffer_->canTransform("robot_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(0.5)))&& (!std::isinf(this->x)|| !std::isinf(this->y)) && !should_set_final_goal)
@@ -314,7 +316,7 @@ class FinalApproachService : public rclcpp::Node
                         // }
                         else{
                             RCLCPP_DEBUG(this->get_logger(), "I have Entered pub ");
-                            twist.linear.x = 0.1; //kp_distance * error_distance; 
+                            twist.linear.x = 0.10; //kp_distance * error_distance; 
                             twist.angular.z = kp_yaw * error_yaw;
                             robot_cmd_vel_publisher->publish(twist);
                         }
@@ -328,18 +330,18 @@ class FinalApproachService : public rclcpp::Node
                 {   
                     // final_goal=true;
                     
-                    // rclcpp::Time start_time = this->now();
-                    // std::chrono::seconds duration(13); // Move for 4 seconds
-                    // rclcpp::Rate small(100);
-                    // while (rclcpp::ok() && (this->now() - start_time) < duration) {
-                    //     RCLCPP_DEBUG(this->get_logger(),"TIME: %f", (this->now() - start_time).seconds());
-                    //     // Your control logic here
-                    //     geometry_msgs::msg::Twist default_twist;
-                    //     default_twist.linear.x = 0.1;  
-                    //     default_twist.angular.z = 0.0;  
-                    //     robot_cmd_vel_publisher->publish(default_twist);
-                    //     small.sleep();
-                    // }
+                    rclcpp::Time start_time = this->now();
+                    std::chrono::seconds duration(12); // Move for 4 seconds
+                    rclcpp::Rate small(100);
+                    while (rclcpp::ok() && (this->now() - start_time) < duration) {
+                        RCLCPP_DEBUG(this->get_logger(),"TIME: %f", (this->now() - start_time).seconds());
+                        // Your control logic here
+                        geometry_msgs::msg::Twist default_twist;
+                        default_twist.linear.x = 0.10;  
+                        default_twist.angular.z = 0.0;  
+                        robot_cmd_vel_publisher->publish(default_twist);
+                        small.sleep();
+                    }
 
                     // Stop the robot after 3 seconds
                     geometry_msgs::msg::Twist stop_twist;
@@ -375,7 +377,7 @@ class FinalApproachService : public rclcpp::Node
             bool attach_action = req->attach_to_table;
             if (attach_action)
             {
-                publishStaticTransform(this->x, this->y);
+                // publishStaticTransform(this->x, this->y);
                 // std::this_thread::sleep_for(std::chrono::seconds(5));
                 // RCLCPP_INFO(this->get_logger(),"map_x: %d", map_x);
                 // RCLCPP_INFO(this->get_logger(),"map_y: %d", map_y);
