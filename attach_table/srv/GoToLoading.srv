@@ -1,3 +1,4 @@
 bool attach_to_table
+int32 table_number
 ---
 bool complete

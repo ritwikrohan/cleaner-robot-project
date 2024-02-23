@@ -63,7 +63,7 @@ class FinalApproachService : public rclcpp::Node
         int firstSetLastValue;
         int secondSetFirstValue;
         double kp_yaw = 0.8;//0.7;
-        double kp_orient = 5.0;//0.7;
+        double kp_orient = 2.0;//0.7;
         double kp_distance = 0.5;
         double x;
         double y;
@@ -76,6 +76,7 @@ class FinalApproachService : public rclcpp::Node
         double id;
         double map_x = 0.0;
         double map_y = 0.0;
+        int table_number = 0;
 
         
         // Using centroid of the legs to calculate a middle point of two legs to create a static tf
@@ -100,7 +101,7 @@ class FinalApproachService : public rclcpp::Node
         }
 
         // function to create a static tf based on the arguement given which will be the mid point of centroids
-        void publishStaticTransform(double x, double y) {
+        void publishStaticTransform(double x, double y, int table_number) {
             // Create a transform message
             geometry_msgs::msg::TransformStamped broadcast_transformStamped;
             broadcast_transformStamped.header.stamp = this->now();
@@ -153,13 +154,13 @@ class FinalApproachService : public rclcpp::Node
                 // Sleep for a short duration to avoid busy waiting
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-            RCLCPP_INFO(this->get_logger(),"map_x: %f", this->map_x);
-            RCLCPP_INFO(this->get_logger(),"map_y: %f", this->map_y);
+            RCLCPP_DEBUG(this->get_logger(),"map_x: %f", this->map_x);
+            RCLCPP_DEBUG(this->get_logger(),"map_y: %f", this->map_y);
             // publishNewFrame(1.000980, 0.785102);
-            publishNewFrame(this->map_x, this->map_y);
+            publishNewFrame(this->map_x, this->map_y, table_number);
         }
 
-        void publishNewFrame(double map_x, double map_y) {
+        void publishNewFrame(double map_x, double map_y, int table_number) {
             // Create a transform message for the new frame
             geometry_msgs::msg::TransformStamped new_frame_transformStamped;
             new_frame_transformStamped.header.stamp = this->now();
@@ -171,19 +172,34 @@ class FinalApproachService : public rclcpp::Node
             new_frame_transformStamped.transform.translation.y = map_y;
             new_frame_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
 
-            // Set the rotation (90-degree rotation around Z-axis)
+            // Set the rotation based on table_number
             double angle = M_PI / 2.0;  // 90 degrees in radians
             double sin_half_angle = sin(angle / 2.0);
             double cos_half_angle = cos(angle / 2.0);
-            new_frame_transformStamped.transform.rotation.x = 0.0;
-            new_frame_transformStamped.transform.rotation.y = 0.0;
-            new_frame_transformStamped.transform.rotation.z = sin_half_angle;
-            new_frame_transformStamped.transform.rotation.w = cos_half_angle;
+
+            if (table_number == 1) {
+                // Set the rotation for table_number 1
+                new_frame_transformStamped.transform.rotation.x = 0.0;
+                new_frame_transformStamped.transform.rotation.y = 0.0;
+                new_frame_transformStamped.transform.rotation.z = 0.0;
+                new_frame_transformStamped.transform.rotation.w = 1.0;
+            } else if (table_number == 2) {
+                // Set the rotation for table_number 2
+                new_frame_transformStamped.transform.rotation.x = 0.0;
+                new_frame_transformStamped.transform.rotation.y = 0.0;
+                new_frame_transformStamped.transform.rotation.z = sin_half_angle;
+                new_frame_transformStamped.transform.rotation.w = cos_half_angle;
+            } else {
+                // Handle invalid table_number or add more cases if needed
+                RCLCPP_ERROR(this->get_logger(), "Invalid table_number: %d", table_number);
+                return;
+            }
 
             // Publish the new frame transform
             tf_static_broadcaster_->sendTransform(new_frame_transformStamped);
             RCLCPP_DEBUG(this->get_logger(), "Published new frame");
         }
+
 
 
         // void publishStaticmapTransform(double x_robot_base, double y_robot_base) {
@@ -257,7 +273,7 @@ class FinalApproachService : public rclcpp::Node
             bool should_set_final_goal = false;
             // bool should_set_yaw_goal = false;
             // bool yaw_after_stopping =false;
-            double maxAllowedDifference = 0.5;  // Adjust this threshold based on your requirement
+            double maxAllowedDifference = 1.0;  // Adjust this threshold based on your requirement
             double lastPublishedX = this->x;
             double lastPublishedY = this->y;
             rclcpp::Rate loop_rate(100);
@@ -265,7 +281,7 @@ class FinalApproachService : public rclcpp::Node
             {   
                 // Check if the difference is not significant compared to the last published values
                 if (std::abs(this->x - lastPublishedX) <= maxAllowedDifference && std::abs(this->y - lastPublishedY) <= maxAllowedDifference) {
-                    publishStaticTransform(this->x, this->y);
+                    publishStaticTransform(this->x, this->y, this->table_number);
                     // Update last published positions immediately after publishing
                     lastPublishedX = this->x;
                     lastPublishedY = this->y;
@@ -293,7 +309,7 @@ class FinalApproachService : public rclcpp::Node
                             if (std::abs(error_orientation)>0.01)
                             {   
                                 // RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
-                                RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
+                                RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
                                 twist.linear.x = 0.0; 
                                 twist.angular.z = kp_orient * error_orientation;
                                 robot_cmd_vel_publisher->publish(twist);
@@ -375,6 +391,7 @@ class FinalApproachService : public rclcpp::Node
         void approach_callback(const std::shared_ptr<attach_table::srv::GoToLoading::Request> req, const std::shared_ptr<attach_table::srv::GoToLoading::Response> res) 
         {
             bool attach_action = req->attach_to_table;
+            this->table_number = req->table_number;
             if (attach_action)
             {
                 // publishStaticTransform(this->x, this->y);
@@ -401,7 +418,7 @@ class FinalApproachService : public rclcpp::Node
             }
             else 
             {
-                publishStaticTransform(x, y);
+                publishStaticTransform(x, y,table_number);
                 res->complete = true;
             }
         }
