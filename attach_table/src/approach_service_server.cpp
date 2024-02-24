@@ -347,7 +347,7 @@ class FinalApproachService : public rclcpp::Node
                     // final_goal=true;
                     
                     rclcpp::Time start_time = this->now();
-                    std::chrono::seconds duration(12); // Move for 4 seconds
+                    std::chrono::seconds duration(13); // Move for 4 seconds
                     rclcpp::Rate small(100);
                     while (rclcpp::ok() && (this->now() - start_time) < duration) {
                         RCLCPP_DEBUG(this->get_logger(),"TIME: %f", (this->now() - start_time).seconds());

@@ -59,15 +59,14 @@ class RobotStateMachine(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
-        # THESE ARE DUMMY VALUES. I NEED TO CHANGE IT ACCORDING TO THE MAP. Stages need to be added.
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
-            "loading_stage": [1.2, -0.5, 0.707,0.707],
-            # "loading_stage": [1.2, -0.5, 0.8495789,0.5274615],#0.7870985, 0.6168274],
+            "loading_stage_1": [4.07681, -1.51506, 0.0, 1.0],
+            "loading_stage_2": [1.2, -0.5, 0.707,0.707],
             "door_stage": [5.5, -0.55, 0.0, 1.0],
-            "back_to_initial": [-0.190,0.142 ,-0.1246747,0.9921977],
-            "new_stage": [-1.41107, -1.56355, 0.0, 1.0],
-            "last_stage": [10.0, -0.55, 0.0, 1.0]}
+            "last_stage_1": [10.0, -0.55, 0.0, 1.0],
+            "last_stage_2": [10.0, -2.55, 0.0, 1.0],
+            "back_to_initial": [-0.190,0.142 ,-0.1246747,0.9921977]}
         self.stage_number = 1
         self.goal_reached = False
         # Frame:map, Position(1.02507, -0.261939, 0), Orientation(0, 0, 0.708792, 0.705417) = Angle: 1.57557
@@ -181,7 +180,40 @@ class RobotStateMachine(Node):
         return self.future.result()
 
 
-    def call_attach_link_service(self):
+    def call_attach_link_service_1(self):
+        print("call_attach_link_service called")
+        
+        self.req1 = AttachLink.Request()
+        self.req1.model1_name = 'rb1_robot'
+        self.req1.link1_name = 'robot_evelator_platform_link'
+        # self.req1.link1_name = 'robot_base_footprint'
+        self.req1.model2_name = 'rubish_table_1'
+        self.req1.link2_name = 'rubish_table_1::rubish_table_1::link'
+
+        self.future1 = self.attach_link_client.call_async(self.req1)
+        rclpy.spin_until_future_complete(self, self.future1)
+        if self.future1.result() is not None:
+            self.get_logger().info('Service call completed.')
+        else:
+            self.get_logger().info('Service call failed.')
+        return self.future1.result()
+
+    def call_detach_link_service_1(self):
+        self.req2 = DetachLink.Request()
+        self.req2.model1_name = 'rb1_robot'
+        self.req2.link1_name = 'robot_evelator_platform_link'
+        # self.req2.link1_name = 'robot_base_footprint'
+        self.req2.model2_name = 'rubish_table_1'
+        self.req2.link2_name = 'rubish_table_1::rubish_table_1::link'
+        self.future2 = self.detach_link_client.call_async(self.req2)
+        rclpy.spin_until_future_complete(self, self.future2)
+        if self.future2.result() is not None:
+            self.get_logger().info('Service call completed.')
+        else:
+            self.get_logger().info('Service call failed.')
+        return self.future2.result()
+
+    def call_attach_link_service_2(self):
         print("call_attach_link_service called")
         
         self.req1 = AttachLink.Request()
@@ -199,7 +231,7 @@ class RobotStateMachine(Node):
             self.get_logger().info('Service call failed.')
         return self.future1.result()
 
-    def call_detach_link_service(self):
+    def call_detach_link_service_2(self):
         self.req2 = DetachLink.Request()
         self.req2.model1_name = 'rb1_robot'
         self.req2.link1_name = 'robot_evelator_platform_link'
@@ -264,9 +296,52 @@ class RobotStateMachine(Node):
         while not self.nav.isTaskComplete():
             pass
     
+
+    def with_table_backup_1(self, turn=True):
+        print("in with_table_backup")
+        msg = Twist()
+        duration = Duration(seconds=15) # setting the time decides the backup distance
+        rate = self.create_rate(10, self.get_clock())
+        start_time = self.get_clock().now()
+        while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
+            msg.linear.x = -0.25
+            msg.linear.y = 0.0
+            msg.linear.z = 0.0
+            msg.angular.x = 0.0
+            msg.angular.y = 0.0
+            msg.angular.z = 0.0
+            self.publisher_.publish(msg)
+            # print('moving backward with table')
+            rate.sleep
+        print('stop')
+        msg.linear.x = 0.0
+        self.publisher_.publish(msg)
+        if turn:
+            #turn the table to thte direction of back room
+            duration = Duration(seconds=2,nanoseconds=670000000)
+            start_time = self.get_clock().now()
+            while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
+                msg = Twist()
+                msg.linear.x = 0.0
+                msg.linear.y = 0.0
+                msg.linear.z = 0.0
+                msg.angular.x = 0.0
+                msg.angular.y = 0.0
+                msg.angular.z = -1.0
+                self.publisher_.publish(msg)
+                print('turn with table')
+                rate.sleep
+        print('stop')
+        msg.linear.x = 0.0
+        msg.linear.y = 0.0
+        msg.linear.z = 0.0
+        msg.angular.x = 0.0
+        msg.angular.y = 0.0
+        msg.angular.z = 0.0
+        self.publisher_.publish(msg)
     
 
-    def with_table_backup(self, turn=True):
+    def with_table_backup_2(self, turn=True):
         print("in with_table_backup")
         msg = Twist()
         duration = Duration(seconds=15) # setting the time decides the backup distance
@@ -404,48 +479,90 @@ class RobotStateMachine(Node):
                 self.door_transform(5.5,-0.5489)
                 self.stage_number = 2
                 # self.goal_reached=True
-                
             elif self.stage_number == 2:
-                self.go_to_pose(self.robot_stage, "loading_stage")
+                self.go_to_pose(self.robot_stage, "loading_stage_1")
                 # self.goal_reached = True
                 self.stage_number = 3
             elif self.stage_number==3:
                 print("Loading stage reached and proceeding to attach the table slowly...")
-                response = self.send_request(True,2)
+                response = self.send_request(True,1)
                 # print(response)
                 self.publish_footprint_table()
                 # self.goal_reached = True
                 self.stage_number=4
             elif self.stage_number==4:
                 print("table attached, Backing up slowly and Proceeding to final stage ...")
-                response2 = self.call_attach_link_service()
-                self.with_table_backup(turn=False)
+                response2 = self.call_attach_link_service_1()
+                self.with_table_backup_1(turn=False)
                 time.sleep(2)
                 # self.go_to_pose(self.robot_stage, "new_stage")
-                self.stage_number=6
+                self.stage_number=5
                 # self.goal_reached = True
-            elif self.stage_number==6:
+            elif self.stage_number==5:
                 print("Proceeding to final stage...")
                 time.sleep(5)
                 self.go_to_pose(self.robot_stage, "door_stage")
-                self.stage_number=7
-                # self.goal_reached = True
-            elif self.stage_number==7:
+                self.stage_number=6
+            elif self.stage_number==6:
                 self.door_controller()
                 print("going forward")
                 # self.table_forward()
-                self.stage_number=8
-                # self.goal_reached = True
-            elif self.stage_number==8:
-                print("Stage 8")
-                self.go_to_pose(self.robot_stage, "last_stage")
+                self.stage_number=7
+            elif self.stage_number==7:
+                print("Stage 7")
+                self.go_to_pose(self.robot_stage, "last_stage_1")
                 self.down_table()
                 time.sleep(2)
-                self.call_detach_link_service()
+                self.call_detach_link_service_1()
                 # self.call_detach_link_service()
                 time.sleep(2)
                 self.table_backward()
-                self.stage_number=9
+                self.publish_footprint_robot()
+                self.stage_number=8
+                # self.goal_reached = True  
+            #############################################################################################################    
+            elif self.stage_number == 8:
+                self.go_to_pose(self.robot_stage, "loading_stage_2")
+                # self.goal_reached = True
+                self.stage_number = 9
+            elif self.stage_number==9:
+                print("Loading stage reached and proceeding to attach the table slowly...")
+                response = self.send_request(True,2)
+                # print(response)
+                self.publish_footprint_table()
+                # self.goal_reached = True
+                self.stage_number=10
+            elif self.stage_number==10:
+                print("table attached, Backing up slowly and Proceeding to final stage ...")
+                response2 = self.call_attach_link_service_2()
+                self.with_table_backup_2(turn=False)
+                time.sleep(2)
+                # self.go_to_pose(self.robot_stage, "new_stage")
+                self.stage_number=11
+                # self.goal_reached = True
+            elif self.stage_number==11:
+                print("Proceeding to final stage...")
+                time.sleep(5)
+                self.go_to_pose(self.robot_stage, "door_stage")
+                self.stage_number=12
+                # self.goal_reached = True
+            elif self.stage_number==12:
+                self.door_controller()
+                print("going forward")
+                # self.table_forward()
+                self.stage_number=13
+                # self.goal_reached = True
+            elif self.stage_number==13:
+                print("Stage 8")
+                self.go_to_pose(self.robot_stage, "last_stage_2")
+                self.down_table()
+                time.sleep(2)
+                self.call_detach_link_service_2()
+                # self.call_detach_link_service()
+                time.sleep(2)
+                self.table_backward()
+                self.publish_footprint_robot()
+                self.stage_number=14
                 self.goal_reached = True            
             #     print("table detached and waiting for a few seconds...")
             #     self.down_table()
@@ -469,3 +586,9 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
+
+
+#############################################################################
+
