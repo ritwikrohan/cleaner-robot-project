@@ -200,13 +200,13 @@ class RobotStateMachine(Node):
         return self.future1.result()
 
     def call_detach_link_service(self):
-        self.req2 = AttachLink.Request()
+        self.req2 = DetachLink.Request()
         self.req2.model1_name = 'rb1_robot'
         self.req2.link1_name = 'robot_evelator_platform_link'
         # self.req2.link1_name = 'robot_base_footprint'
         self.req2.model2_name = 'rubish_table_2'
         self.req2.link2_name = 'rubish_table_2::rubish_table_2::link'
-        self.future2 = self.attach_link_client.call_async(self.req2)
+        self.future2 = self.detach_link_client.call_async(self.req2)
         rclpy.spin_until_future_complete(self, self.future2)
         if self.future2.result() is not None:
             self.get_logger().info('Service call completed.')
@@ -439,9 +439,11 @@ class RobotStateMachine(Node):
             elif self.stage_number==8:
                 print("Stage 8")
                 self.go_to_pose(self.robot_stage, "last_stage")
-                self.call_detach_link_service()
                 self.down_table()
-                time.sleep(5)
+                time.sleep(2)
+                self.call_detach_link_service()
+                # self.call_detach_link_service()
+                time.sleep(2)
                 self.table_backward()
                 self.stage_number=9
                 self.goal_reached = True            
