@@ -43,8 +43,8 @@ class RobotStateMachine(Node):
         while not self.detach_link_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.req2 = DetachLink.Request()
-        # self.publisher_ = self.create_publisher(Twist, "/diffbot_base_controller/cmd_vel_unstamped", 10)
-        self.publisher_ = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.publisher_ = self.create_publisher(Twist, "/diffbot_base_controller/cmd_vel_unstamped", 10)
+        # self.publisher_ = self.create_publisher(Twist, "/cmd_vel", 10)
         self.local_table_footprint_publisher = self.create_publisher(Polygon,"/local_costmap/footprint", 10)
         self.global_table_footprint_publisher = self.create_publisher(Polygon,"/global_costmap/footprint", 10)
         timer_period = 0.5  # seconds
@@ -62,7 +62,8 @@ class RobotStateMachine(Node):
         # THESE ARE DUMMY VALUES. I NEED TO CHANGE IT ACCORDING TO THE MAP. Stages need to be added.
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
-            "loading_stage": [1.2, -0.5, 0.707,0.707],
+            "loading_stage1": [1.2, -0.5, 0.0 ,1.0],
+            "loading_stage2": [1.2, -0.5, 0.707,0.707],
             # "loading_stage": [1.2, -0.5, 0.8495789,0.5274615],#0.7870985, 0.6168274],
             "door_stage": [5.5, -0.55, 0.0, 1.0],
             "back_to_initial": [-0.190,0.142 ,-0.1246747,0.9921977],
@@ -269,7 +270,7 @@ class RobotStateMachine(Node):
     def with_table_backup(self, turn=True):
         print("in with_table_backup")
         msg = Twist()
-        duration = Duration(seconds=15) # setting the time decides the backup distance
+        duration = Duration(seconds=18) # setting the time decides the backup distance
         rate = self.create_rate(10, self.get_clock())
         start_time = self.get_clock().now()
         while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
@@ -406,7 +407,8 @@ class RobotStateMachine(Node):
                 # self.goal_reached=True
                 
             elif self.stage_number == 2:
-                self.go_to_pose(self.robot_stage, "loading_stage")
+                self.go_to_pose(self.robot_stage, "loading_stage1")
+                self.go_to_pose(self.robot_stage, "loading_stage2")
                 # self.goal_reached = True
                 self.stage_number = 3
             elif self.stage_number==3:
