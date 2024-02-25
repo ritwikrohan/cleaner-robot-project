@@ -207,7 +207,7 @@ laserSegmentation::laserSegmentation()
       options_scan);
 
   odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "/odom", default_qos,
+      "/turtlebot_5/odom", default_qos,
       std::bind(&laserSegmentation::odom_callback, this, std::placeholders::_1),
       options_odom);
 }

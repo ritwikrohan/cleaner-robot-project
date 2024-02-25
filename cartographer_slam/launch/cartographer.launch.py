@@ -10,7 +10,7 @@ def generate_launch_description():
     cartographer_config_dir = os.path.join(get_package_share_directory('cartographer_slam'), 'config')
     configuration_basename = 'cartographer.lua'
 
-    use_sim_time_arg = DeclareLaunchArgument("use_sim_time", default_value="True", description="Choose according to the use(True for simulation and False for Robot)")
+    use_sim_time_arg = DeclareLaunchArgument("use_sim_time", default_value="False", description="Choose according to the use(True for simulation and False for Robot)")
     use_sim_time_arg_f = LaunchConfiguration('use_sim_time')
 
     rviz_config_dir = os.path.join(get_package_share_directory('cartographer_slam'), 'rviz', 'config.rviz')
@@ -22,7 +22,11 @@ def generate_launch_description():
             output='screen',
             parameters=[{'use_sim_time': use_sim_time_arg_f}],
             arguments=['-configuration_directory', cartographer_config_dir,
-                       '-configuration_basename', configuration_basename])
+                       '-configuration_basename', configuration_basename],
+            remappings=[
+                    ('/odom', '/turtlebot_5/odom'),
+                    ('/scan', '/turtlebot_5/scan'),]
+        )
 
     occupancy_grid_node = Node(
             package='cartographer_ros',
@@ -30,7 +34,10 @@ def generate_launch_description():
             output='screen',
             name='occupancy_grid_node',
             parameters=[{'use_sim_time': use_sim_time_arg_f}],
-            arguments=['-resolution', '0.05', '-publish_period_sec', '1.0']
+            arguments=['-resolution', '0.05', '-publish_period_sec', '1.0'],
+            remappings=[
+                    ('/odom', '/turtlebot_5/odom'),
+                    ('/scan', '/turtlebot_5/scan'),]
         )
 
     rviz2_node = Node(

@@ -1,9 +1,9 @@
 bt_navigator:
   ros__parameters:
-    use_sim_time: True
+    use_sim_time: False
     global_frame: map
-    robot_base_frame: robot_base_link
-    odom_topic: /odom
+    robot_base_frame: turtlebot_5_base_link
+    odom_topic: /turtlebot_5_odom
     bt_loop_duration: 10
     default_server_timeout: 20
     default_nav_to_pose_bt_xml: "/home/user/ros2_ws/src/path_planner_server/config/navigate_w_replanning_and_recovery.xml"

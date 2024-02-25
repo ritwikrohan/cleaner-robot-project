@@ -14,7 +14,7 @@ behavior_server:
     global_frame: map #odom #map
     robot_base_frame: robot_base_link
     transform_timeout: 0.5
-    use_sim_time: True
+    use_sim_time: False
     simulate_ahead_time: 2.0
     max_rotational_vel: 1.0
     min_rotational_vel: 0.4

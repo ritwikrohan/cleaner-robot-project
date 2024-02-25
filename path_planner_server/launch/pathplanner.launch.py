@@ -60,7 +60,7 @@ def generate_launch_description():
             package='rviz2',
             executable='rviz2',
             name='rviz2',
-            parameters=[{'use_sim_time': True}],
+            parameters=[{'use_sim_time': False}],
             output='screen',
             arguments=['-d' + os.path.join(get_package_share_directory('path_planner_server'), 'rviz', 'config.rviz')]
         ),

@@ -5,7 +5,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     
-    map_file = os.path.join(get_package_share_directory('map_server'), 'config', 'starbot_sim_area.yaml')
+    map_file = os.path.join(get_package_share_directory('map_server'), 'config', 'starbot_real_area.yaml')
 
     return LaunchDescription([
         Node(
@@ -13,7 +13,7 @@ def generate_launch_description():
             executable='map_server',
             name='map_server',
             output='screen',
-            parameters=[{'use_sim_time': True}, 
+            parameters=[{'use_sim_time': False}, 
                         {'yaml_filename':map_file} 
                        ]),
 
@@ -21,7 +21,7 @@ def generate_launch_description():
             package='rviz2',
             executable='rviz2',
             name='rviz2',
-            parameters=[{'use_sim_time': True}],
+            parameters=[{'use_sim_time': False}],
             output='screen',
             arguments=['-d' + os.path.join(get_package_share_directory('map_server'), 'rviz', 'config.rviz')]
             ),
@@ -31,7 +31,7 @@ def generate_launch_description():
             executable='lifecycle_manager',
             name='lifecycle_manager_mapper',
             output='screen',
-            parameters=[{'use_sim_time': True},
+            parameters=[{'use_sim_time': False},
                         {'autostart': True},
                         {'node_names': ['map_server']}])            
         ])
