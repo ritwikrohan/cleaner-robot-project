@@ -10,10 +10,10 @@ def generate_launch_description():
     planner_yaml = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'planner_server.yaml')
     recovery_yaml = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'recovery.yaml')
     nav2_yaml = os.path.join(get_package_share_directory('localization_server'), 'config', 'amcl_config.yaml')
-    map_file = os.path.join(get_package_share_directory('map_server'), 'config', 'starbot_sim_area.yaml')
+    map_file = os.path.join(get_package_share_directory('map_server'), 'config', 'starbot_real_area.yaml')
     filters_yaml = os.path.join(get_package_share_directory('path_planner_server'), 'config', 'filters.yaml')
     segmentation_yaml = os.path.join(get_package_share_directory('laser_segmentation'), 'params', 'default_params.yml')
-    remappings = [('/cmd_vel', '/diffbot_base_controller/cmd_vel_unstamped')]
+    remappings = [('/cmd_vel', '/turtlebot_5/cmd_vel')]
 
     return LaunchDescription([     
         Node(
@@ -53,8 +53,8 @@ def generate_launch_description():
             executable='controller_server',
             name='controller_server',
             output='screen',
-            parameters=[controller_yaml]),
-            # remappings=remappings),
+            parameters=[controller_yaml],
+            remappings=remappings),
 
         Node(
             package='nav2_planner',
@@ -68,7 +68,7 @@ def generate_launch_description():
             executable='behavior_server',
             name='behavior_server',
             parameters=[recovery_yaml],
-            # remappings=remappings,
+            remappings=remappings,
             output='screen'),
 
         Node(

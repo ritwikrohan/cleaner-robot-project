@@ -76,8 +76,8 @@ local_costmap:
     ros__parameters:
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: odom
-      robot_base_frame: robot_base_link
+      global_frame: turtlebot_5_odom
+      robot_base_frame: turtlebot_5_base_footprint
       use_sim_time: True
       rolling_window: true
       width: 3
@@ -102,7 +102,7 @@ local_costmap:
         mark_threshold: 0
         observation_sources: scan
         scan:
-          topic: /scan
+          topic: /turtlebot_5/scan_filtered
           max_obstacle_height: 2.0
           clearing: True
           marking: True

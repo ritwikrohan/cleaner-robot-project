@@ -12,7 +12,7 @@ behavior_server:
     wait:
       plugin: "nav2_behaviors/Wait"
     global_frame: map #odom #map
-    robot_base_frame: robot_base_link
+    robot_base_frame: turtlebot_5_base_footprint
     transform_timeout: 0.5
     use_sim_time: False
     simulate_ahead_time: 2.0

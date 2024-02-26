@@ -23,11 +23,11 @@ segmentation:
     max_segment_width: 0.2
     method_threshold: ''
     min_avg_distance_from_sensor: 0.0
-    min_points_segment: 20
+    min_points_segment: 5
     min_segment_width: 0.1
     noise_reduction: 0.7
     restore_defaults: false
-    scan_topic: /turtlebot_5/scan
+    scan_topic: turtlebot_5/scan_filtered
     segmentation_type: jump_distance
     segments_topic: segments
 
