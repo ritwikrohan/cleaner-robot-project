@@ -78,7 +78,7 @@ local_costmap:
       publish_frequency: 2.0
       global_frame: turtlebot_5_odom
       robot_base_frame: turtlebot_5_base_footprint
-      use_sim_time: True
+      use_sim_time: False
       rolling_window: true
       width: 3
       height: 3
@@ -120,15 +120,15 @@ local_costmap:
       always_send_full_costmap: True
 
   # Not included in course
-  # local_costmap_client:
-  #   ros__parameters:
-  #     use_sim_time: False
-  # local_costmap_rclcpp_node:
-  #   ros__parameters:
-  #     use_sim_time: False
+  local_costmap_client:
+    ros__parameters:
+      use_sim_time: False
+  local_costmap_rclcpp_node:
+    ros__parameters:
+      use_sim_time: False
 
   # Not included in course
-# controller_server_rclcpp_node:
-#   ros__parameters:
-#     use_sim_time: False
+controller_server_rclcpp_node:
+  ros__parameters:
+    use_sim_time: False
         

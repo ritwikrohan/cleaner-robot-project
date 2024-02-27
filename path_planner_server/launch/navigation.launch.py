@@ -85,13 +85,13 @@ def generate_launch_description():
             name='approach_service_server',
             emulate_tty=True),
 
-        Node(
-            package = 'laser_segmentation',
-            namespace = '',
-            executable = 'laser_segmentation',
-            name = 'segmentation',
-            parameters=[segmentation_yaml],
-            emulate_tty = True),
+        # Node(
+        #     package = 'laser_segmentation',
+        #     namespace = '',
+        #     executable = 'laser_segmentation',
+        #     name = 'segmentation',
+        #     parameters=[segmentation_yaml],
+        #     emulate_tty = True),
 
 
         Node(

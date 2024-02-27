@@ -34,4 +34,23 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/FindTable.srv"
 )
 
+add_executable(find_service_server_node src/find_table_service_server.cpp)
+ament_target_dependencies(find_service_server_node rclcpp slg_msgs geometry_msgs sensor_msgs nav_msgs tf2 tf2_ros tf2_geometry_msgs)
+rosidl_target_interfaces(find_service_server_node ${PROJECT_NAME} "rosidl_typesupport_cpp")
+
+target_link_libraries(find_service_server_node
+  ${tf2_LIBRARIES}
+  ${tf2_geometry_msgs_LIBRARIES}
+)
+
+install(TARGETS
+   find_service_server_node
+   DESTINATION lib/${PROJECT_NAME}
+ )
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 ament_package()

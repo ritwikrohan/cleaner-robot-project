@@ -54,7 +54,7 @@ class FindTableService : public rclcpp::Node
 
 
     private:
-        rclcpp::Service<attach_table::srv::GoToLoading>::SharedPtr approach_server_;
+        rclcpp::Service<find_table::srv::FindTable>::SharedPtr find_server_;
         // rclcpp::Publisher<std_msgs::msg::String>::SharedPtr elevator_pub_;
         rclcpp::Subscription<slg_msgs::msg::Centroids>::SharedPtr centroid_sub_;
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
@@ -108,7 +108,7 @@ class FindTableService : public rclcpp::Node
 
         void publishTransform(const double& Ax, const double& Ay, const double& Bx, const double& By) {
             geometry_msgs::msg::TransformStamped transformStamped;
-            transformStamped.header.frame_id = "robot_base_link"; // Replace with your frame_id
+            transformStamped.header.frame_id = "turtlebot_5_laser_link"; // Replace with your frame_id
             transformStamped.child_frame_id = "pre_loading_frame"; // Replace with your child_frame_id
             transformStamped.header.stamp = this->now();
 
@@ -199,7 +199,7 @@ class FindTableService : public rclcpp::Node
             transformStamped.transform.rotation = tf2::toMsg(rotationQuaternion);
 
             // Publish the transformation
-            tf_static_broadcaster_.sendTransform(transformStamped);
+            tf_static_broadcaster_->sendTransform(transformStamped);
         }
 
         // // function to create a static tf based on the arguement given which will be the mid point of centroids
@@ -324,18 +324,18 @@ class FindTableService : public rclcpp::Node
                     // elevator_pub_->publish(message);
                     // std::this_thread::sleep_for(std::chrono::seconds(5));
                     publishTransform(this->centroid0_x, this->centroid0_y, this->centroid1_x, this->centroid1_y);
-                    res->complete = true;
+                    res->found = true;
                 }
                 else 
                 {
                     RCLCPP_INFO(this->get_logger(),"No Table Found");
-                    res->complete=false;
+                    res->found=false;
                 }
             }
             else 
             {
                 // publishStaticTransform(x, y,table_number);
-                res->complete = true;
+                res->found = true;
             }
         }
 };

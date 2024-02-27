@@ -312,6 +312,22 @@ void laserSegmentation::odom_callback(
   this->odom_header = msg->header;
 }
 
+// Function to calculate the angle between three segments
+double laserSegmentation::calculateAngle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3) {
+    slg::Vector2D vec1 = seg2.centroid() - seg1.centroid();
+    slg::Vector2D vec2 = seg3.centroid() - seg2.centroid();
+
+    double dotProduct = vec1.dot(vec2);
+    double magnitudeProduct = vec1.length() * vec2.length();
+
+    if (magnitudeProduct == 0) {
+        return 0; // Avoid division by zero
+    }
+
+    double cosTheta = dotProduct / magnitudeProduct;
+    return std::acos(cosTheta) * (180.0 / M_PI); // Convert radians to degrees
+}
+
 void laserSegmentation::scan_callback(
     const sensor_msgs::msg::LaserScan::SharedPtr scan_msg) {
   // Note: Only perform laserscan segmentation if there's any subscriber
@@ -324,20 +340,38 @@ void laserSegmentation::scan_callback(
   RCLCPP_INFO_ONCE(this->get_logger(), "Subscribed to laser scan topic: [%s]",
                    scan_topic_.c_str());
 
-  // Read the laser scan
-  std::vector<slg::Point2D> point_list;
-  double phi = scan_msg->angle_min;
-  double angle_resolution = scan_msg->angle_increment;
-  for (const auto r : scan_msg->ranges) {
-    if (r >= scan_msg->range_min && r <= scan_msg->range_max) {
-      point_list.push_back(slg::Point2D::from_polar_coords(r, phi));
-    } else {
-      point_list.push_back(slg::Point2D::NaN());
-    }
-    phi += angle_resolution;
-  }
+    double front_angle_min = -M_PI / 4.0;  // Adjust as needed
+    double front_angle_max = M_PI / 4.0;   // Adjust as needed
 
-  // Segment the points
+    // Read the laser scan for the specified range of angles
+    std::vector<slg::Point2D> point_list;
+    double phi = scan_msg->angle_min;
+    double angle_resolution = scan_msg->angle_increment;
+    for (const auto r : scan_msg->ranges) {
+        // Check if the angle is within the specified front range
+        // if (phi >= front_angle_min && phi <= front_angle_max) {
+            if (r >= scan_msg->range_min && r <= scan_msg->range_max) {
+                point_list.push_back(slg::Point2D::from_polar_coords(r, phi));
+            } else {
+                point_list.push_back(slg::Point2D::NaN());
+            }
+        // }
+        phi += angle_resolution;
+    }
+  // Read the laser scan
+//   std::vector<slg::Point2D> point_list;
+//   double phi = scan_msg->angle_min;
+//   double angle_resolution = scan_msg->angle_increment;
+//   for (const auto r : scan_msg->ranges) {
+//     if (r >= scan_msg->range_min && r <= scan_msg->range_max) {
+//       point_list.push_back(slg::Point2D::from_polar_coords(r, phi));
+//     } else {
+//       point_list.push_back(slg::Point2D::NaN());
+//     }
+//     phi += angle_resolution;
+//   }
+
+ // Segment the points
   std::vector<slg::Segment2D> segment_list;
   segmentation_->initialize_segmentation(distance_thres_, angle_resolution,
                                          noise_reduction_, method_thres_);
@@ -374,19 +408,105 @@ void laserSegmentation::scan_callback(
     segment_filtered_list.push_back(segment);
   }
   
-  // Declare a member variable to store the history of segments
-    std::vector<slg::Segment2D> segment_history_;
-    std::sort(segment_filtered_list.begin(), segment_filtered_list.end(),
+const double min_pair_distance = 0.48;  // 0.48 - 0.02
+const double max_pair_distance = 0.499;  // 0.48 + 0.02
+
+// Create a set to keep track of already considered pairs
+std::set<std::pair<size_t, size_t>> considered_pairs;
+
+// Create a vector to store the final filtered segments
+std::vector<slg::Segment2D> pre_final_filtered_segments;
+
+
+std::set<slg::Point2D> unique_centroids;
+
+for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
+    for (size_t j = i + 1; j < segment_filtered_list.size(); ++j) {
+        double distance_between_segments = (segment_filtered_list[i].centroid() - segment_filtered_list[j].centroid()).length();
+
+        // Check if the pair is within the desired range and not already considered
+        if (distance_between_segments >= min_pair_distance && distance_between_segments <= max_pair_distance) {
+            std::pair<size_t, size_t> current_pair(i, j);
+            std::pair<size_t, size_t> reversed_pair(j, i);
+
+            if (considered_pairs.find(current_pair) == considered_pairs.end() && considered_pairs.find(reversed_pair) == considered_pairs.end()) {
+                // Both segments in the pair pass the distance filter
+                // Check if centroids are unique before adding to the final list
+                if (unique_centroids.insert(segment_filtered_list[i].centroid()).second) {
+                    pre_final_filtered_segments.push_back(segment_filtered_list[i]);
+                }
+                if (unique_centroids.insert(segment_filtered_list[j].centroid()).second) {
+                    pre_final_filtered_segments.push_back(segment_filtered_list[j]);
+                }
+
+                // Mark the pair as considered
+                considered_pairs.insert(current_pair);
+            }
+        }
+    }
+}
+
+
+
+// Create a set to keep track of already considered triplets
+std::set<std::tuple<size_t, size_t, size_t>> considered_triplets;
+
+// Create a vector to store the final filtered segments
+std::vector<slg::Segment2D> final_filtered_segments;
+
+std::set<slg::Point2D> unique_final_centroids;
+
+for (size_t i = 0; i < pre_final_filtered_segments.size(); ++i) {
+    for (size_t j = i + 1; j < pre_final_filtered_segments.size(); ++j) {
+        for (size_t k = j + 1; k < pre_final_filtered_segments.size(); ++k) {
+            double angle = calculateAngle(pre_final_filtered_segments[i], pre_final_filtered_segments[j], pre_final_filtered_segments[k]);
+
+            // Adjust the threshold as needed for your specific scenario
+            if (std::abs(angle - 90.0) < 5.0) {
+                // If the angle is close to 90 degrees, keep the segments
+                final_filtered_segments.push_back(pre_final_filtered_segments[i]);
+                final_filtered_segments.push_back(pre_final_filtered_segments[j]);
+                final_filtered_segments.push_back(pre_final_filtered_segments[k]);
+
+                // Check if centroids are unique before adding to the final list
+                if (unique_final_centroids.insert(pre_final_filtered_segments[i].centroid()).second) {
+                    final_filtered_segments.push_back(pre_final_filtered_segments[i]);
+                }
+                if (unique_final_centroids.insert(pre_final_filtered_segments[j].centroid()).second) {
+                    final_filtered_segments.push_back(pre_final_filtered_segments[j]);
+                }
+                if (unique_final_centroids.insert(pre_final_filtered_segments[k].centroid()).second) {
+                    final_filtered_segments.push_back(pre_final_filtered_segments[k]);
+                }
+
+                // Mark the triplet as considered
+                considered_triplets.insert(std::make_tuple(i, j, k));
+            }
+        }
+    }
+}
+
+// Step 3: Sort the filtered segments based on centroid length
+std::vector<slg::Segment2D> segment_history_;
+std::sort(final_filtered_segments.begin(), final_filtered_segments.end(),
           [](const slg::Segment2D& a, const slg::Segment2D& b) {
-            return a.centroid().length() < b.centroid().length();
+              return a.centroid().length() < b.centroid().length();
           });
+
+// Print the distance between segments in segment_filtered_list
+for (size_t i = 0; i < final_filtered_segments.size(); ++i) {
+    for (size_t j = i + 1; j < final_filtered_segments.size(); ++j) {
+        double distance_between_segments = (final_filtered_segments[i].centroid() - final_filtered_segments[j].centroid()).length();
+        RCLCPP_INFO(this->get_logger(), "Distance between segment %zu and segment %zu: %f", i, j, distance_between_segments);
+    }
+}
 
     // Create a vector to store the current detected legs
     std::vector<slg::Segment2D> current_detected_legs;
 
     // Assign unique IDs based on centroid proximity
-    for (size_t s = 0; s < segment_filtered_list.size(); s++) {
-    slg::Point2D current_centroid = segment_filtered_list[s].centroid();
+    for (size_t s = 0; s < final_filtered_segments.size(); s++) {
+    slg::Point2D current_centroid = final_filtered_segments[s].centroid();
 
     bool matched = false;
 
@@ -397,17 +517,17 @@ void laserSegmentation::scan_callback(
         // Adjust the threshold as needed for your specific scenario
         if (centroid_distance < 0.5) {
         // If the centroid is close to any centroid in history, assign the same ID
-        segment_filtered_list[s].set_id(segment_history_[i].id);
+        final_filtered_segments[s].set_id(segment_history_[i].id);
         matched = true;
-        current_detected_legs.push_back(segment_filtered_list[s]);
+        current_detected_legs.push_back(final_filtered_segments[s]);
         break;
         }
     }
 
     if (!matched) {
         // If the centroid is not close to any centroid in history, assign a new ID
-        segment_filtered_list[s].set_id(s + segment_history_.size());
-        current_detected_legs.push_back(segment_filtered_list[s]);
+        final_filtered_segments[s].set_id(s + segment_history_.size());
+        current_detected_legs.push_back(final_filtered_segments[s]);
     }
     }
 
@@ -416,7 +536,7 @@ void laserSegmentation::scan_callback(
 
   // Identification of segments and set angular distance
   segment_array_msg.header = scan_msg->header; // this->odom_header;
-  for (const auto &segment : segment_filtered_list) {
+  for (const auto &segment : final_filtered_segments) {
 		if(segment.id !=2)
     {
 			segment_array_msg.segments.push_back(segment);
@@ -433,7 +553,7 @@ void laserSegmentation::scan_callback(
   segment_pub_->publish(segment_array_msg);
 
   // Shows the segments
-  show_visualization(scan_msg->header, segment_filtered_list);
+  show_visualization(scan_msg->header, final_filtered_segments);
 }
 
 /* Show the segments in rviz */
@@ -449,9 +569,9 @@ void laserSegmentation::show_visualization(
 
   // Create a marker point
   visualization_msgs::msg::Marker viz_point;
-//   viz_point.header = header;
-  viz_point.header.stamp = this->odom_header.stamp;
-  viz_point.header.frame_id = header.frame_id;
+  viz_point.header = header;
+//   viz_point.header.stamp = this->odom_header.stamp;
+//   viz_point.header.frame_id = header.frame_id;
   viz_point.lifetime = rclcpp::Duration(0, 10);
   viz_point.ns = "segments";
   viz_point.type = visualization_msgs::msg::Marker::POINTS;
@@ -461,9 +581,9 @@ void laserSegmentation::show_visualization(
 
   // Create a marker centroid
   visualization_msgs::msg::Marker viz_centroids;
-//   viz_centroids.header = header;
-  viz_centroids.header.stamp = this->odom_header.stamp;
-  viz_centroids.header.frame_id = header.frame_id;
+  viz_centroids.header = header;
+//   viz_centroids.header.stamp = this->odom_header.stamp;
+//   viz_centroids.header.frame_id = header.frame_id;
   viz_centroids.lifetime = rclcpp::Duration(0, 10);
   viz_centroids.ns = "centroids";
   viz_centroids.type = visualization_msgs::msg::Marker::CUBE;
@@ -479,9 +599,9 @@ void laserSegmentation::show_visualization(
 
   // Create a marker id text
   visualization_msgs::msg::Marker viz_text;
-//   viz_text.header = header;
-  viz_text.header.stamp = this->odom_header.stamp;
-  viz_text.header.frame_id = header.frame_id;
+  viz_text.header = header;
+//   viz_text.header.stamp = this->odom_header.stamp;
+//   viz_text.header.frame_id = header.frame_id;
   viz_text.lifetime = rclcpp::Duration(0, 10);
   viz_text.ns = "id";
   viz_text.type = visualization_msgs::msg::Marker::TEXT_VIEW_FACING;

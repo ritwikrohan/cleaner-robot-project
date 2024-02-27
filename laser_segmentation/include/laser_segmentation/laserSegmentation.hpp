@@ -58,6 +58,7 @@ class laserSegmentation: public rclcpp::Node{
 		void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr scan);
         void odom_callback(const std::shared_ptr<nav_msgs::msg::Odometry> msg);
 		void show_visualization(std_msgs::msg::Header header, std::vector<slg::Segment2D> segmentList);
+        double calculateAngle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3);
 		std_msgs::msg::ColorRGBA get_parula_color(unsigned int index, unsigned int max);
 		std_msgs::msg::ColorRGBA get_palette_color(unsigned int index);
 };
