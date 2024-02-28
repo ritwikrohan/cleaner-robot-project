@@ -350,8 +350,8 @@ void laserSegmentation::scan_callback(
   RCLCPP_INFO_ONCE(this->get_logger(), "Subscribed to laser scan topic: [%s]",
                    scan_topic_.c_str());
 
-    double front_angle_min = -M_PI / 3.0;  // Adjust as needed
-    double front_angle_max = M_PI / 3.0;   // Adjust as needed
+    double front_angle_min = -M_PI / 4.0;  // Adjust as needed
+    double front_angle_max = M_PI / 4.0;   // Adjust as needed
 
     // Read the laser scan for the specified range of angles
     std::vector<slg::Point2D> point_list;

@@ -1,6 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from attach_table.srv import GoToLoading
+from find_table.srv import FindTable
 from geometry_msgs.msg import Twist
 import time
 from copy import deepcopy
@@ -24,27 +25,32 @@ class RobotStateMachine(Node):
 
     def __init__(self):
         super().__init__('statemachine_node')
-        client_cb_group = MutuallyExclusiveCallbackGroup()
-        self.client = self.create_client(GoToLoading, "/approach_table", callback_group=client_cb_group)
-        while not self.client.wait_for_service(timeout_sec=1.0):
+        attach_client_cb_group = MutuallyExclusiveCallbackGroup()
+        self.attach_client = self.create_client(GoToLoading, "/approach_table", callback_group=attach_client_cb_group)
+        while not self.attach_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
         self.req = GoToLoading.Request()
-        attach_link_cb_group = MutuallyExclusiveCallbackGroup()
-        detach_link_cb_group = MutuallyExclusiveCallbackGroup()
-        self.attach_link_client = self.create_client(
-            AttachLink, '/ATTACHLINK', callback_group=attach_link_cb_group
-        )
-        while not self.attach_link_client.wait_for_service(timeout_sec=1.0):
+        find_client_cb_group = MutuallyExclusiveCallbackGroup()
+        self.find_client = self.create_client(FindTable, "/find_table", callback_group=find_client_cb_group)
+        while not self.find_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().info('service not available, waiting again...')
-        self.req1 = AttachLink.Request()
-        self.detach_link_client = self.create_client(
-            DetachLink, '/DETACHLINK', callback_group=detach_link_cb_group
-        )
-        while not self.detach_link_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().info('service not available, waiting again...')
-        self.req2 = DetachLink.Request()
+        self.req1 = FindTable.Request()
+        # attach_link_cb_group = MutuallyExclusiveCallbackGroup()
+        # detach_link_cb_group = MutuallyExclusiveCallbackGroup()
+        # self.attach_link_client = self.create_client(
+        #     AttachLink, '/ATTACHLINK', callback_group=attach_link_cb_group
+        # )
+        # while not self.attach_link_client.wait_for_service(timeout_sec=1.0):
+        #     self.get_logger().info('service not available, waiting again...')
+        # self.req1 = AttachLink.Request()
+        # self.detach_link_client = self.create_client(
+        #     DetachLink, '/DETACHLINK', callback_group=detach_link_cb_group
+        # )
+        # while not self.detach_link_client.wait_for_service(timeout_sec=1.0):
+        #     self.get_logger().info('service not available, waiting again...')
+        # self.req2 = DetachLink.Request()
         # self.publisher_ = self.create_publisher(Twist, "/diffbot_base_controller/cmd_vel_unstamped", 10)
-        self.publisher_ = self.create_publisher(Twist, "/cmd_vel", 10)
+        self.publisher_ = self.create_publisher(Twist, "/turtlebot_5/cmd_vel", 10)
         self.local_table_footprint_publisher = self.create_publisher(Polygon,"/local_costmap/footprint", 10)
         self.global_table_footprint_publisher = self.create_publisher(Polygon,"/global_costmap/footprint", 10)
         timer_period = 0.5  # seconds
@@ -61,7 +67,7 @@ class RobotStateMachine(Node):
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
-            "loading_stage_1": [4.07681, -1.51506, 0.0, 1.0],
+            "loading_stage_1": [-0.239, 1.24, 0.0, 1.0],
             "loading_stage_2": [1.2, -0.5, 0.707,0.707],
             "door_stage": [5.5, -0.55, 0.0, 1.0],
             "last_stage_1": [10.0, -0.55, 0.0, 1.0],
@@ -70,6 +76,21 @@ class RobotStateMachine(Node):
         self.stage_number = 1
         self.goal_reached = False
         # Frame:map, Position(1.02507, -0.261939, 0), Orientation(0, 0, 0.708792, 0.705417) = Angle: 1.57557
+
+
+    def get_map_to_pre_loading_frame_transform(self):
+        try:
+            transform_stamped = self.tf_buffer.lookup_transform(
+                "map", "map_pre_loading_frame", rclpy.time.Time()
+            )
+            translation_x = transform_stamped.transform.translation.x
+            translation_y = transform_stamped.transform.translation.y
+            rotation = transform_stamped.transform.rotation  # Extracting rotation quaternion
+            return translation_x, translation_y, rotation
+        except Exception as e:
+            self.get_logger().error(f"Error getting transform: {str(e)}")
+            return None
+
 
     def euler_from_quaternion(self, quaternion):
         """
@@ -172,12 +193,17 @@ class RobotStateMachine(Node):
         self.publisher_.publish(msg)
 
     # attach table service request
-    def send_request(self, a, table_number):
+    def send_attach_request(self, a):
         self.req.attach_to_table = a
-        self.req.table_number = table_number
-        self.future = self.client.call_async(self.req)
+        self.future = self.attach_client.call_async(self.req)
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
+
+    def send_find_request(self, a):
+        self.req1.look_for_table = a
+        self.future1 = self.find_client.call_async(self.req1)
+        rclpy.spin_until_future_complete(self, self.future1)
+        return self.future1.result()
 
 
     def call_attach_link_service_1(self):
@@ -197,54 +223,6 @@ class RobotStateMachine(Node):
         else:
             self.get_logger().info('Service call failed.')
         return self.future1.result()
-
-    def call_detach_link_service_1(self):
-        self.req2 = DetachLink.Request()
-        self.req2.model1_name = 'rb1_robot'
-        self.req2.link1_name = 'robot_evelator_platform_link'
-        # self.req2.link1_name = 'robot_base_footprint'
-        self.req2.model2_name = 'rubish_table_1'
-        self.req2.link2_name = 'rubish_table_1::rubish_table_1::link'
-        self.future2 = self.detach_link_client.call_async(self.req2)
-        rclpy.spin_until_future_complete(self, self.future2)
-        if self.future2.result() is not None:
-            self.get_logger().info('Service call completed.')
-        else:
-            self.get_logger().info('Service call failed.')
-        return self.future2.result()
-
-    def call_attach_link_service_2(self):
-        print("call_attach_link_service called")
-        
-        self.req1 = AttachLink.Request()
-        self.req1.model1_name = 'rb1_robot'
-        self.req1.link1_name = 'robot_evelator_platform_link'
-        # self.req1.link1_name = 'robot_base_footprint'
-        self.req1.model2_name = 'rubish_table_2'
-        self.req1.link2_name = 'rubish_table_2::rubish_table_2::link'
-
-        self.future1 = self.attach_link_client.call_async(self.req1)
-        rclpy.spin_until_future_complete(self, self.future1)
-        if self.future1.result() is not None:
-            self.get_logger().info('Service call completed.')
-        else:
-            self.get_logger().info('Service call failed.')
-        return self.future1.result()
-
-    def call_detach_link_service_2(self):
-        self.req2 = DetachLink.Request()
-        self.req2.model1_name = 'rb1_robot'
-        self.req2.link1_name = 'robot_evelator_platform_link'
-        # self.req2.link1_name = 'robot_base_footprint'
-        self.req2.model2_name = 'rubish_table_2'
-        self.req2.link2_name = 'rubish_table_2::rubish_table_2::link'
-        self.future2 = self.detach_link_client.call_async(self.req2)
-        rclpy.spin_until_future_complete(self, self.future2)
-        if self.future2.result() is not None:
-            self.get_logger().info('Service call completed.')
-        else:
-            self.get_logger().info('Service call failed.')
-        return self.future2.result()
 
     #setting initial position of robot for localisation.
     def set_init_pose(self):
@@ -291,6 +269,43 @@ class RobotStateMachine(Node):
 
         elif result == TaskResult.FAILED:
             print('Task at ' + stage_name + ' failed!')
+            exit(-1)
+
+        while not self.nav.isTaskComplete():
+            pass
+
+    def go_to_table_pose(self, x, y, rotation):
+        self.goal_pose.header.frame_id = 'map'
+        self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
+        self.goal_pose.pose.position.x = x
+        self.goal_pose.pose.position.y = y
+        # self.goal_pose.pose.orientation.z = 0.0
+        # self.goal_pose.pose.orientation.w = 1.0
+        self.goal_pose.pose.orientation = rotation
+        self.nav.goToPose(self.goal_pose)
+
+        # Do something during your route
+        # (e.x. queue up future tasks or detect person for fine-tuned positioning)
+        # Print information for workers on the robot's ETA for the demonstration
+        i = 0
+        while not self.nav.isTaskComplete():
+            i = i + 1
+            feedback = self.nav.getFeedback()
+            if feedback and i % 10 == 0:
+                print('Time left to reach ' + 'pre_table' + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+        
+        result = self.nav.getResult()
+        if result == TaskResult.SUCCEEDED:
+            print('Reached (' + 'pre_table' + ')...')
+
+
+        elif result == TaskResult.CANCELED:
+            print('Task at ' + 'pre_table'  +
+                ' was canceled. Returning to staging point...')
+            exit(-1)
+
+        elif result == TaskResult.FAILED:
+            print('Task at ' + 'pre_table' + ' failed!')
             exit(-1)
 
         while not self.nav.isTaskComplete():
@@ -476,94 +491,108 @@ class RobotStateMachine(Node):
             
             if self.stage_number == 1:
             #     self.set_init_pose()
-                self.door_transform(5.5,-0.5489)
+                # self.door_transform(5.5,-0.5489)
+                self.go_to_pose(self.robot_stage, "loading_stage_1")
+                time.sleep(5)
+                response = self.send_find_request(True)
+                print(response)
+                if response:
+                    transform_x, transform_y, rotate= self.get_map_to_pre_loading_frame_transform()
+                    self.go_to_table_pose(transform_x, transform_y, rotate)
+                response2 = self.send_attach_request(True)
                 self.stage_number = 2
                 # self.goal_reached=True
-            elif self.stage_number == 2:
-                self.go_to_pose(self.robot_stage, "loading_stage_1")
-                # self.goal_reached = True
-                self.stage_number = 3
-            elif self.stage_number==3:
-                print("Loading stage reached and proceeding to attach the table slowly...")
-                response = self.send_request(True,1)
-                # print(response)
-                self.publish_footprint_table()
-                # self.goal_reached = True
-                self.stage_number=4
-            elif self.stage_number==4:
-                print("table attached, Backing up slowly and Proceeding to final stage ...")
-                response2 = self.call_attach_link_service_1()
-                self.with_table_backup_1(turn=False)
-                time.sleep(2)
-                # self.go_to_pose(self.robot_stage, "new_stage")
-                self.stage_number=5
-                # self.goal_reached = True
-            elif self.stage_number==5:
-                print("Proceeding to final stage...")
-                time.sleep(5)
-                self.go_to_pose(self.robot_stage, "door_stage")
-                self.stage_number=6
-            elif self.stage_number==6:
-                self.door_controller()
-                print("going forward")
-                # self.table_forward()
-                self.stage_number=7
-            elif self.stage_number==7:
-                print("Stage 7")
-                self.go_to_pose(self.robot_stage, "last_stage_1")
-                self.down_table()
-                time.sleep(2)
-                self.call_detach_link_service_1()
-                # self.call_detach_link_service()
-                time.sleep(2)
-                self.table_backward()
-                self.publish_footprint_robot()
-                self.stage_number=8
-                # self.goal_reached = True  
-            #############################################################################################################    
-            elif self.stage_number == 8:
-                self.go_to_pose(self.robot_stage, "loading_stage_2")
-                # self.goal_reached = True
-                self.stage_number = 9
-            elif self.stage_number==9:
-                print("Loading stage reached and proceeding to attach the table slowly...")
-                response = self.send_request(True,2)
-                # print(response)
-                self.publish_footprint_table()
-                # self.goal_reached = True
-                self.stage_number=10
-            elif self.stage_number==10:
-                print("table attached, Backing up slowly and Proceeding to final stage ...")
-                response2 = self.call_attach_link_service_2()
-                self.with_table_backup_2(turn=False)
-                time.sleep(2)
-                # self.go_to_pose(self.robot_stage, "new_stage")
-                self.stage_number=11
-                # self.goal_reached = True
-            elif self.stage_number==11:
-                print("Proceeding to final stage...")
-                time.sleep(5)
-                self.go_to_pose(self.robot_stage, "door_stage")
-                self.stage_number=12
-                # self.goal_reached = True
-            elif self.stage_number==12:
-                self.door_controller()
-                print("going forward")
-                # self.table_forward()
-                self.stage_number=13
-                # self.goal_reached = True
-            elif self.stage_number==13:
-                print("Stage 8")
-                self.go_to_pose(self.robot_stage, "last_stage_2")
-                self.down_table()
-                time.sleep(2)
-                self.call_detach_link_service_2()
-                # self.call_detach_link_service()
-                time.sleep(2)
-                self.table_backward()
-                self.publish_footprint_robot()
-                self.stage_number=14
-                self.goal_reached = True            
+
+            # if self.stage_number == 1:
+            # #     self.set_init_pose()
+            #     self.door_transform(5.5,-0.5489)
+            #     self.stage_number = 2
+            #     # self.goal_reached=True
+            # elif self.stage_number == 2:
+            #     self.go_to_pose(self.robot_stage, "loading_stage_1")
+            #     # self.goal_reached = True
+            #     self.stage_number = 3
+            # elif self.stage_number==3:
+            #     print("Loading stage reached and proceeding to attach the table slowly...")
+            #     response = self.send_request(True,1)
+            #     # print(response)
+            #     self.publish_footprint_table()
+            #     # self.goal_reached = True
+            #     self.stage_number=4
+            # elif self.stage_number==4:
+            #     print("table attached, Backing up slowly and Proceeding to final stage ...")
+            #     response2 = self.call_attach_link_service_1()
+            #     self.with_table_backup_1(turn=False)
+            #     time.sleep(2)
+            #     # self.go_to_pose(self.robot_stage, "new_stage")
+            #     self.stage_number=5
+            #     # self.goal_reached = True
+            # elif self.stage_number==5:
+            #     print("Proceeding to final stage...")
+            #     time.sleep(5)
+            #     self.go_to_pose(self.robot_stage, "door_stage")
+            #     self.stage_number=6
+            # elif self.stage_number==6:
+            #     self.door_controller()
+            #     print("going forward")
+            #     # self.table_forward()
+            #     self.stage_number=7
+            # elif self.stage_number==7:
+            #     print("Stage 7")
+            #     self.go_to_pose(self.robot_stage, "last_stage_1")
+            #     self.down_table()
+            #     time.sleep(2)
+            #     self.call_detach_link_service_1()
+            #     # self.call_detach_link_service()
+            #     time.sleep(2)
+            #     self.table_backward()
+            #     self.publish_footprint_robot()
+            #     self.stage_number=8
+            #     # self.goal_reached = True  
+            # #############################################################################################################    
+            # elif self.stage_number == 8:
+            #     self.go_to_pose(self.robot_stage, "loading_stage_2")
+            #     # self.goal_reached = True
+            #     self.stage_number = 9
+            # elif self.stage_number==9:
+            #     print("Loading stage reached and proceeding to attach the table slowly...")
+            #     response = self.send_request(True,2)
+            #     # print(response)
+            #     self.publish_footprint_table()
+            #     # self.goal_reached = True
+            #     self.stage_number=10
+            # elif self.stage_number==10:
+            #     print("table attached, Backing up slowly and Proceeding to final stage ...")
+            #     response2 = self.call_attach_link_service_2()
+            #     self.with_table_backup_2(turn=False)
+            #     time.sleep(2)
+            #     # self.go_to_pose(self.robot_stage, "new_stage")
+            #     self.stage_number=11
+            #     # self.goal_reached = True
+            # elif self.stage_number==11:
+            #     print("Proceeding to final stage...")
+            #     time.sleep(5)
+            #     self.go_to_pose(self.robot_stage, "door_stage")
+            #     self.stage_number=12
+            #     # self.goal_reached = True
+            # elif self.stage_number==12:
+            #     self.door_controller()
+            #     print("going forward")
+            #     # self.table_forward()
+            #     self.stage_number=13
+            #     # self.goal_reached = True
+            # elif self.stage_number==13:
+            #     print("Stage 8")
+            #     self.go_to_pose(self.robot_stage, "last_stage_2")
+            #     self.down_table()
+            #     time.sleep(2)
+            #     self.call_detach_link_service_2()
+            #     # self.call_detach_link_service()
+            #     time.sleep(2)
+            #     self.table_backward()
+            #     self.publish_footprint_robot()
+            #     self.stage_number=14
+            #     self.goal_reached = True            
             #     print("table detached and waiting for a few seconds...")
             #     self.down_table()
             #     self.publish_footprint_robot()

@@ -42,7 +42,7 @@ class FinalApproachService : public rclcpp::Node
             centroid_sub_ = this->create_subscription<slg_msgs::msg::Centroids>("/segments/centroids", 10, std::bind(&FinalApproachService::centroidCallback, this, std::placeholders::_1), options_centroid);
             elevator_pub_ = this->create_publisher<std_msgs::msg::String>("/elevator_up", 1);
             // robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/diffbot_base_controller/cmd_vel_unstamped", 1);
-            robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/cmd_vel", 1);
+            robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/turtlebot_5/cmd_vel", 1);
             tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
             tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
             tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -62,7 +62,7 @@ class FinalApproachService : public rclcpp::Node
         rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr robot_cmd_vel_publisher;
         int firstSetLastValue;
         int secondSetFirstValue;
-        double kp_yaw = 0.8;//0.7;
+        double kp_yaw = 1.8;//0.7;
         double kp_orient = 2.0;//0.7;
         double kp_distance = 0.5;
         double x;
@@ -77,6 +77,7 @@ class FinalApproachService : public rclcpp::Node
         double map_x = 0.0;
         double map_y = 0.0;
         int table_number = 0;
+        geometry_msgs::msg::Quaternion orientation_quaternion;
 
         
         // Using centroid of the legs to calculate a middle point of two legs to create a static tf
@@ -101,11 +102,11 @@ class FinalApproachService : public rclcpp::Node
         }
 
         // function to create a static tf based on the arguement given which will be the mid point of centroids
-        void publishStaticTransform(double x, double y, int table_number) {
+        void publishStaticTransform(double x, double y) {
             // Create a transform message
             geometry_msgs::msg::TransformStamped broadcast_transformStamped;
             broadcast_transformStamped.header.stamp = this->now();
-            broadcast_transformStamped.header.frame_id = "robot_front_laser_base_link";  // Set the parent frame ID
+            broadcast_transformStamped.header.frame_id = "turtlebot_5_laser_link";  // Set the parent frame ID
             broadcast_transformStamped.child_frame_id = "table_front_frame";  // Set the child frame ID
 
 
@@ -144,7 +145,8 @@ class FinalApproachService : public rclcpp::Node
 
                     this->map_x = map_transform.transform.translation.x;
                     this->map_y = map_transform.transform.translation.y;
-                    
+                    // Directly use the rotation from map_transform for map_pre_loading_frame
+                    this->orientation_quaternion = map_transform.transform.rotation;
                     // Exit the loop once map_x and map_y have been found
                     break;
                 } else {
@@ -152,15 +154,15 @@ class FinalApproachService : public rclcpp::Node
                 }
 
                 // Sleep for a short duration to avoid busy waiting
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
             }
             RCLCPP_DEBUG(this->get_logger(),"map_x: %f", this->map_x);
             RCLCPP_DEBUG(this->get_logger(),"map_y: %f", this->map_y);
             // publishNewFrame(1.000980, 0.785102);
-            publishNewFrame(this->map_x, this->map_y, table_number);
+            publishNewFrame(this->map_x, this->map_y, this->orientation_quaternion);
         }
 
-        void publishNewFrame(double map_x, double map_y, int table_number) {
+        void publishNewFrame(double map_x, double map_y, const geometry_msgs::msg::Quaternion& orientation) {
             // Create a transform message for the new frame
             geometry_msgs::msg::TransformStamped new_frame_transformStamped;
             new_frame_transformStamped.header.stamp = this->now();
@@ -172,28 +174,8 @@ class FinalApproachService : public rclcpp::Node
             new_frame_transformStamped.transform.translation.y = map_y;
             new_frame_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
 
-            // Set the rotation based on table_number
-            double angle = M_PI / 2.0;  // 90 degrees in radians
-            double sin_half_angle = sin(angle / 2.0);
-            double cos_half_angle = cos(angle / 2.0);
-
-            if (table_number == 1) {
-                // Set the rotation for table_number 1
-                new_frame_transformStamped.transform.rotation.x = 0.0;
-                new_frame_transformStamped.transform.rotation.y = 0.0;
-                new_frame_transformStamped.transform.rotation.z = 0.0;
-                new_frame_transformStamped.transform.rotation.w = 1.0;
-            } else if (table_number == 2) {
-                // Set the rotation for table_number 2
-                new_frame_transformStamped.transform.rotation.x = 0.0;
-                new_frame_transformStamped.transform.rotation.y = 0.0;
-                new_frame_transformStamped.transform.rotation.z = sin_half_angle;
-                new_frame_transformStamped.transform.rotation.w = cos_half_angle;
-            } else {
-                // Handle invalid table_number or add more cases if needed
-                RCLCPP_ERROR(this->get_logger(), "Invalid table_number: %d", table_number);
-                return;
-            }
+            // Set the rotation for map_pre_loading_frame
+            new_frame_transformStamped.transform.rotation = orientation;
 
             // Publish the new frame transform
             tf_static_broadcaster_->sendTransform(new_frame_transformStamped);
@@ -281,42 +263,42 @@ class FinalApproachService : public rclcpp::Node
             {   
                 // Check if the difference is not significant compared to the last published values
                 if (std::abs(this->x - lastPublishedX) <= maxAllowedDifference && std::abs(this->y - lastPublishedY) <= maxAllowedDifference) {
-                    publishStaticTransform(this->x, this->y, this->table_number);
+                    publishStaticTransform(this->x, this->y);
                     // Update last published positions immediately after publishing
                     lastPublishedX = this->x;
                     lastPublishedY = this->y;
                 }
                 // publishStaticTransform(this->x, this->y);
                 // final_goal = true;
-                if ((tf_buffer_->canTransform("robot_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(0.5)))&& (!std::isinf(this->x)|| !std::isinf(this->y)) && !should_set_final_goal)
+                if ((tf_buffer_->canTransform("turtlebot_5_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(0.5)))&& (!std::isinf(this->x)|| !std::isinf(this->y)) && !should_set_final_goal)
                 {   
                     RCLCPP_DEBUG(this->get_logger(), "I have Entered if ");
                     try {
                         RCLCPP_DEBUG(this->get_logger(), "I have Entered try ");
                         geometry_msgs::msg::TransformStamped transform;
-                        transform = tf_buffer_->lookupTransform("robot_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(1.0));
+                        transform = tf_buffer_->lookupTransform("turtlebot_5_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(1.0));
 
                         double error_distance = calculateDistanceError(transform);
                         double error_yaw = calculateYawError(transform);
                         double error_orientation = calculateOrientationError(transform);
-                        RCLCPP_DEBUG(this->get_logger(),"error_d : %f", error_distance);
-                        RCLCPP_DEBUG(this->get_logger(),"error_y : %f", error_yaw);
+                        RCLCPP_INFO(this->get_logger(),"error_d : %f", error_distance);
+                        RCLCPP_INFO(this->get_logger(),"error_y : %f", error_yaw);
                         RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
                         geometry_msgs::msg::Twist twist;
-                        if (error_distance < 0.5 && std::abs(error_yaw < 0.05)){
+                        if (error_distance < 0.5 && std::abs(error_yaw) < 0.05){
                         //  if (error_yaw < 0.05){
-                            RCLCPP_DEBUG(this->get_logger(),"Early stage");
-                            if (std::abs(error_orientation)>0.01)
-                            {   
-                                // RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
-                                RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
-                                twist.linear.x = 0.0; 
-                                twist.angular.z = kp_orient * error_orientation;
-                                robot_cmd_vel_publisher->publish(twist);
-                            }
-                            else{
+                            // RCLCPP_DEBUG(this->get_logger(),"Early stage");
+                            // if (std::abs(error_orientation)>0.01)
+                            // {   
+                            //     // RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
+                            //     RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
+                            //     twist.linear.x = 0.0; 
+                            //     twist.angular.z = kp_orient * error_orientation;
+                            //     robot_cmd_vel_publisher->publish(twist);
+                            // }
+                            // else{
                                 should_set_final_goal = true;
-                            }
+                            // }
                         }
                         // else if (should_set_yaw_goal)
                         // {
@@ -353,7 +335,7 @@ class FinalApproachService : public rclcpp::Node
                         RCLCPP_DEBUG(this->get_logger(),"TIME: %f", (this->now() - start_time).seconds());
                         // Your control logic here
                         geometry_msgs::msg::Twist default_twist;
-                        default_twist.linear.x = 0.10;  
+                        default_twist.linear.x = 0.0;  
                         default_twist.angular.z = 0.0;  
                         robot_cmd_vel_publisher->publish(default_twist);
                         small.sleep();
@@ -418,7 +400,7 @@ class FinalApproachService : public rclcpp::Node
             }
             else 
             {
-                publishStaticTransform(x, y,table_number);
+                publishStaticTransform(x, y);
                 res->complete = true;
             }
         }

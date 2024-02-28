@@ -70,6 +70,8 @@ class FindTableService : public rclcpp::Node
         double centroid0_y = 0.0;
         double centroid1_x = 0.0;
         double centroid1_y = 0.0;
+        double centroid2_x = 0.0;
+        double centroid2_y = 0.0;
         double id;
         double map_x = 0.0;
         double map_y = 0.0;
@@ -92,6 +94,11 @@ class FindTableService : public rclcpp::Node
                 {
                     this->centroid1_x = current_centroid.x;
                     this->centroid1_y = current_centroid.y;
+                }
+                else if (current_centroid.z == 2.0) 
+                {
+                    this->centroid2_x = current_centroid.x;
+                    this->centroid2_y = current_centroid.y;
                 }
             }
             this->x = (this->centroid0_x + this->centroid1_x)/2.0;
@@ -200,141 +207,136 @@ class FindTableService : public rclcpp::Node
 
             // Publish the transformation
             tf_static_broadcaster_->sendTransform(transformStamped);
+
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+
+                 // Wait for TF2 buffer to be ready
+            tf2::TimePoint time_point = tf2::TimePoint(std::chrono::seconds(0));  // Use zero time for the latest available transform
+
+            while (rclcpp::ok()) {
+                if (tf_buffer_->canTransform("map", "pre_loading_frame", time_point)) {
+                    // Transform the coordinates from "table_front_frame" to "map"
+                    geometry_msgs::msg::TransformStamped map_transform;
+                    try {
+                        map_transform = tf_buffer_->lookupTransform("map", "pre_loading_frame", time_point);
+                    } catch (tf2::TransformException& ex) {
+                        RCLCPP_INFO(this->get_logger(), "Failed to transform coordinates: %s", ex.what());
+                        continue;  // Retry if the transformation fails
+                    }
+
+                    this->map_x = map_transform.transform.translation.x;
+                    this->map_y = map_transform.transform.translation.y;
+                    
+                    // Exit the loop once map_x and map_y have been found
+                    break;
+                } else {
+                    RCLCPP_INFO(this->get_logger(), "Transform not available. Waiting for transform...");
+                }
+
+                // Sleep for a short duration to avoid busy waiting
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            RCLCPP_DEBUG(this->get_logger(),"map_x: %f", this->map_x);
+            RCLCPP_DEBUG(this->get_logger(),"map_y: %f", this->map_y);
+            // publishNewFrame(1.000980, 0.785102);
+            publishNewFrame(this->map_x, this->map_y);
         }
 
-        // // function to create a static tf based on the arguement given which will be the mid point of centroids
-        // void publishStaticTransform(double x, double y, int table_number) {
-        //     // Create a transform message
-        //     geometry_msgs::msg::TransformStamped broadcast_transformStamped;
-        //     broadcast_transformStamped.header.stamp = this->now();
-        //     broadcast_transformStamped.header.frame_id = "robot_front_laser_base_link";  // Set the parent frame ID
-        //     broadcast_transformStamped.child_frame_id = "table_front_frame";  // Set the child frame ID
+        
 
+        void publishNewFrame(double map_x, double map_y) {
+            // Create a transform message for the new frame
+            geometry_msgs::msg::TransformStamped new_frame_transformStamped;
+            new_frame_transformStamped.header.stamp = this->now();
+            new_frame_transformStamped.header.frame_id = "map";  // Set the parent frame ID
+            new_frame_transformStamped.child_frame_id = "map_pre_loading_frame";  // Set the child frame ID
 
+            // Set the translation (x, y, z)
+            new_frame_transformStamped.transform.translation.x = map_x;
+            new_frame_transformStamped.transform.translation.y = map_y;
+            new_frame_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
+            // Set the rotation for table_number 1
+            new_frame_transformStamped.transform.rotation.x = 0.0;
+            new_frame_transformStamped.transform.rotation.y = 0.0;
+            new_frame_transformStamped.transform.rotation.z = 0.0;
+            new_frame_transformStamped.transform.rotation.w = 1.0;
             
-        //     // Set the translation (x, y, z)
-        //     RCLCPP_DEBUG(this->get_logger(),"base centroid x: %f",x);
-        //     RCLCPP_DEBUG(this->get_logger(),"base centroid y: %f",y);
-        //     broadcast_transformStamped.transform.translation.x = x;
-        //     broadcast_transformStamped.transform.translation.y = y;
-        //     broadcast_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
 
-        //     // Set the rotation (no rotation in a static transform)
-        //     broadcast_transformStamped.transform.rotation.x = 0.0;
-        //     broadcast_transformStamped.transform.rotation.y = 0.0;
-        //     broadcast_transformStamped.transform.rotation.z = 0.0;
-        //     broadcast_transformStamped.transform.rotation.w = 1.0;
-
-        //     // Publish the static transform
-        //     tf_static_broadcaster_->sendTransform(broadcast_transformStamped);
-        //     RCLCPP_DEBUG(this->get_logger(), "PUBLISHED");
+            // Publish the new frame transform
+            tf_static_broadcaster_->sendTransform(new_frame_transformStamped);
+            RCLCPP_DEBUG(this->get_logger(), "Published new frame");
+        }
 
 
-        //      // Wait for TF2 buffer to be ready
-        //     tf2::TimePoint time_point = tf2::TimePoint(std::chrono::seconds(0));  // Use zero time for the latest available transform
-
-        //     while (rclcpp::ok()) {
-        //         if (tf_buffer_->canTransform("map", "table_front_frame", time_point)) {
-        //             // Transform the coordinates from "table_front_frame" to "map"
-        //             geometry_msgs::msg::TransformStamped map_transform;
-        //             try {
-        //                 map_transform = tf_buffer_->lookupTransform("map", "table_front_frame", time_point);
-        //             } catch (tf2::TransformException& ex) {
-        //                 RCLCPP_INFO(this->get_logger(), "Failed to transform coordinates: %s", ex.what());
-        //                 continue;  // Retry if the transformation fails
-        //             }
-
-        //             this->map_x = map_transform.transform.translation.x;
-        //             this->map_y = map_transform.transform.translation.y;
-                    
-        //             // Exit the loop once map_x and map_y have been found
-        //             break;
-        //         } else {
-        //             RCLCPP_INFO(this->get_logger(), "Transform not available. Waiting for transform...");
+        // void find_callback(const std::shared_ptr<find_table::srv::FindTable::Request> req, const std::shared_ptr<find_table::srv::FindTable::Response> res) 
+        // {
+        //     bool find_action = req->look_for_table;
+        //     // this->table_number = req->table_number;
+        //     if (find_action)
+        //     {
+        //         // publishStaticTransform(this->x, this->y);
+        //         // std::this_thread::sleep_for(std::chrono::seconds(5));
+        //         // RCLCPP_INFO(this->get_logger(),"map_x: %d", map_x);
+        //         // RCLCPP_INFO(this->get_logger(),"map_y: %d", map_y);
+        //         // publishNewFrame(this->map_x, this->map_y);
+        //         if (this->x!=0.0 && this->y!=0.0 && this->distance_between_clusters < 0.5)
+        //         {
+        //             RCLCPP_INFO(this->get_logger(),"Table Found");
+        //             // controlLoop();
+        //             // std::this_thread::sleep_for(std::chrono::seconds(5));
+        //             // auto message = std_msgs::msg::String();
+        //             // message.data = "";
+        //             // elevator_pub_->publish(message);
+        //             // std::this_thread::sleep_for(std::chrono::seconds(5));
+        //             publishTransform(this->centroid0_x, this->centroid0_y, this->centroid1_x, this->centroid1_y);
+        //             res->found = true;
         //         }
-
-        //         // Sleep for a short duration to avoid busy waiting
-        //         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        //         else 
+        //         {
+        //             RCLCPP_INFO(this->get_logger(),"No Table Found");
+        //             res->found=false;
+        //         }
         //     }
-        //     RCLCPP_DEBUG(this->get_logger(),"map_x: %f", this->map_x);
-        //     RCLCPP_DEBUG(this->get_logger(),"map_y: %f", this->map_y);
-        //     // publishNewFrame(1.000980, 0.785102);
-        //     publishNewFrame(this->map_x, this->map_y, table_number);
-        // }
-
-        // void publishNewFrame(double map_x, double map_y, int table_number) {
-        //     // Create a transform message for the new frame
-        //     geometry_msgs::msg::TransformStamped new_frame_transformStamped;
-        //     new_frame_transformStamped.header.stamp = this->now();
-        //     new_frame_transformStamped.header.frame_id = "map";  // Set the parent frame ID
-        //     new_frame_transformStamped.child_frame_id = "new_frame";  // Set the child frame ID
-
-        //     // Set the translation (x, y, z)
-        //     new_frame_transformStamped.transform.translation.x = map_x;
-        //     new_frame_transformStamped.transform.translation.y = map_y;
-        //     new_frame_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
-
-        //     // Set the rotation based on table_number
-        //     double angle = M_PI / 2.0;  // 90 degrees in radians
-        //     double sin_half_angle = sin(angle / 2.0);
-        //     double cos_half_angle = cos(angle / 2.0);
-
-        //     if (table_number == 1) {
-        //         // Set the rotation for table_number 1
-        //         new_frame_transformStamped.transform.rotation.x = 0.0;
-        //         new_frame_transformStamped.transform.rotation.y = 0.0;
-        //         new_frame_transformStamped.transform.rotation.z = 0.0;
-        //         new_frame_transformStamped.transform.rotation.w = 1.0;
-        //     } else if (table_number == 2) {
-        //         // Set the rotation for table_number 2
-        //         new_frame_transformStamped.transform.rotation.x = 0.0;
-        //         new_frame_transformStamped.transform.rotation.y = 0.0;
-        //         new_frame_transformStamped.transform.rotation.z = sin_half_angle;
-        //         new_frame_transformStamped.transform.rotation.w = cos_half_angle;
-        //     } else {
-        //         // Handle invalid table_number or add more cases if needed
-        //         RCLCPP_ERROR(this->get_logger(), "Invalid table_number: %d", table_number);
-        //         return;
+        //     else 
+        //     {
+        //         // publishStaticTransform(x, y,table_number);
+        //         res->found = true;
         //     }
-
-        //     // Publish the new frame transform
-        //     tf_static_broadcaster_->sendTransform(new_frame_transformStamped);
-        //     RCLCPP_DEBUG(this->get_logger(), "Published new frame");
         // }
-
-
         void find_callback(const std::shared_ptr<find_table::srv::FindTable::Request> req, const std::shared_ptr<find_table::srv::FindTable::Response> res) 
         {
             bool find_action = req->look_for_table;
-            // this->table_number = req->table_number;
+
             if (find_action)
             {
-                // publishStaticTransform(this->x, this->y);
-                // std::this_thread::sleep_for(std::chrono::seconds(5));
-                // RCLCPP_INFO(this->get_logger(),"map_x: %d", map_x);
-                // RCLCPP_INFO(this->get_logger(),"map_y: %d", map_y);
-                // publishNewFrame(this->map_x, this->map_y);
-                if (this->x!=0.0 && this->y!=0.0 && this->distance_between_clusters < 1.0)
+                // Check if centroids 0, 1, and 2 are visible and within the desired distance
+                if (this->centroid0_x != 0.0 && this->centroid0_y != 0.0 )
                 {
-                    RCLCPP_INFO(this->get_logger(),"Table Found");
-                    // controlLoop();
-                    // std::this_thread::sleep_for(std::chrono::seconds(5));
-                    // auto message = std_msgs::msg::String();
-                    // message.data = "";
-                    // elevator_pub_->publish(message);
-                    // std::this_thread::sleep_for(std::chrono::seconds(5));
-                    publishTransform(this->centroid0_x, this->centroid0_y, this->centroid1_x, this->centroid1_y);
-                    res->found = true;
+                    double distance01 = sqrt(pow(this->centroid0_x - this->centroid1_x, 2) + pow(this->centroid0_y - this->centroid1_y, 2));
+                    double distance12 = sqrt(pow(this->centroid1_x - this->centroid2_x, 2) + pow(this->centroid1_y - this->centroid2_y, 2));
+
+                    // if (distance01 >= 0.48 && distance01 <= 0.499 && distance12 >= 0.48 && distance12 <= 0.499)
+                    if (true)
+                    {
+                        RCLCPP_INFO(this->get_logger(), "Table Found");
+                        publishTransform(this->centroid0_x, this->centroid0_y, this->centroid1_x, this->centroid1_y);
+                        res->found = true;
+                    }
+                    else
+                    {
+                        RCLCPP_INFO(this->get_logger(), "No Table Found (Centroid distances not within the desired range)");
+                        res->found = false;
+                    }
                 }
-                else 
+                else
                 {
-                    RCLCPP_INFO(this->get_logger(),"No Table Found");
-                    res->found=false;
+                    RCLCPP_INFO(this->get_logger(), "No Table Found (Some centroids are missing)");
+                    res->found = false;
                 }
             }
             else 
             {
-                // publishStaticTransform(x, y,table_number);
+                // Handle the case when find_action is false
                 res->found = true;
             }
         }
@@ -356,133 +358,4 @@ int main(int argc, char **argv)
 
 
 
-
-
-
-
-
-
-
-
-
-        // // Simple P controller to follow the newly created tf between the legs
-        // void controlLoop() 
-        // {   
-        //     bool final_goal = false;
-        //     bool should_set_final_goal = false;
-        //     // bool should_set_yaw_goal = false;
-        //     // bool yaw_after_stopping =false;
-        //     double maxAllowedDifference = 1.0;  // Adjust this threshold based on your requirement
-        //     double lastPublishedX = this->x;
-        //     double lastPublishedY = this->y;
-        //     rclcpp::Rate loop_rate(100);
-        //     while(!final_goal)
-        //     {   
-        //         // Check if the difference is not significant compared to the last published values
-        //         if (std::abs(this->x - lastPublishedX) <= maxAllowedDifference && std::abs(this->y - lastPublishedY) <= maxAllowedDifference) {
-        //             publishStaticTransform(this->x, this->y, this->table_number);
-        //             // Update last published positions immediately after publishing
-        //             lastPublishedX = this->x;
-        //             lastPublishedY = this->y;
-        //         }
-        //         // publishStaticTransform(this->x, this->y);
-        //         // final_goal = true;
-        //         if ((tf_buffer_->canTransform("robot_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(0.5)))&& (!std::isinf(this->x)|| !std::isinf(this->y)) && !should_set_final_goal)
-        //         {   
-        //             RCLCPP_DEBUG(this->get_logger(), "I have Entered if ");
-        //             try {
-        //                 RCLCPP_DEBUG(this->get_logger(), "I have Entered try ");
-        //                 geometry_msgs::msg::TransformStamped transform;
-        //                 transform = tf_buffer_->lookupTransform("robot_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(1.0));
-
-        //                 double error_distance = calculateDistanceError(transform);
-        //                 double error_yaw = calculateYawError(transform);
-        //                 double error_orientation = calculateOrientationError(transform);
-        //                 RCLCPP_DEBUG(this->get_logger(),"error_d : %f", error_distance);
-        //                 RCLCPP_DEBUG(this->get_logger(),"error_y : %f", error_yaw);
-        //                 RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
-        //                 geometry_msgs::msg::Twist twist;
-        //                 if (error_distance < 0.5 && std::abs(error_yaw < 0.05)){
-        //                 //  if (error_yaw < 0.05){
-        //                     RCLCPP_DEBUG(this->get_logger(),"Early stage");
-        //                     if (std::abs(error_orientation)>0.01)
-        //                     {   
-        //                         // RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
-        //                         RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
-        //                         twist.linear.x = 0.0; 
-        //                         twist.angular.z = kp_orient * error_orientation;
-        //                         robot_cmd_vel_publisher->publish(twist);
-        //                     }
-        //                     else{
-        //                         should_set_final_goal = true;
-        //                     }
-        //                 }
-        //                 // else if (should_set_yaw_goal)
-        //                 // {
-        //                 //     if (error_yaw>0.05) {
-        //                 //         RCLCPP_INFO(this->get_logger(),"Correcting stage");
-        //                 //         twist.linear.x = 0.0; //kp_distance * error_distance; 
-        //                 //         twist.angular.z = kp_yaw * error_yaw;
-        //                 //         robot_cmd_vel_publisher->publish(twist);
-        //                 //     }
-        //                 //     else {
-        //                 //         should_set_final_goal = true;
-        //                 //     }
-        //                 // }
-        //                 else{
-        //                     RCLCPP_DEBUG(this->get_logger(), "I have Entered pub ");
-        //                     twist.linear.x = 0.10; //kp_distance * error_distance; 
-        //                     twist.angular.z = kp_yaw * error_yaw;
-        //                     robot_cmd_vel_publisher->publish(twist);
-        //                 }
-
-
-        //             } catch (tf2::TransformException &ex) {
-        //                 RCLCPP_INFO(this->get_logger(), "TF Exception: %s", ex.what());
-        //             }
-        //         }
-        //         else if (should_set_final_goal)
-        //         {   
-        //             // final_goal=true;
-                    
-        //             rclcpp::Time start_time = this->now();
-        //             std::chrono::seconds duration(13); // Move for 4 seconds
-        //             rclcpp::Rate small(100);
-        //             while (rclcpp::ok() && (this->now() - start_time) < duration) {
-        //                 RCLCPP_DEBUG(this->get_logger(),"TIME: %f", (this->now() - start_time).seconds());
-        //                 // Your control logic here
-        //                 geometry_msgs::msg::Twist default_twist;
-        //                 default_twist.linear.x = 0.10;  
-        //                 default_twist.angular.z = 0.0;  
-        //                 robot_cmd_vel_publisher->publish(default_twist);
-        //                 small.sleep();
-        //             }
-
-        //             // Stop the robot after 3 seconds
-        //             geometry_msgs::msg::Twist stop_twist;
-        //             stop_twist.linear.x = 0.0;
-        //             stop_twist.angular.z = 0.0;
-        //             robot_cmd_vel_publisher->publish(stop_twist);
-        //             final_goal = true;
-        //         }   
-        //         loop_rate.sleep();
-        //     }
-        // }
-
-        // double calculateDistanceError(const geometry_msgs::msg::TransformStamped &transform) {
-        //     return sqrt(((transform.transform.translation.x)) * ((transform.transform.translation.x)) +
-        //                 transform.transform.translation.y * transform.transform.translation.y);
-        // }
-
-        // double calculateYawError(const geometry_msgs::msg::TransformStamped &transform) {
-        //     return atan2(transform.transform.translation.y, transform.transform.translation.x);
-        // }
-
-        // double calculateOrientationError(const geometry_msgs::msg::TransformStamped &transform) {
-        //     // Extract yaw (Z-axis rotation) from the quaternion
-        //     double target_yaw = tf2::getYaw(transform.transform.rotation);
-
-        //     // Compute yaw error
-        //     return target_yaw;
-        // }
 
