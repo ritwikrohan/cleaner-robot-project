@@ -118,11 +118,24 @@ class FinalApproachService : public rclcpp::Node
             broadcast_transformStamped.transform.translation.y = y;
             broadcast_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
 
-            // Set the rotation (no rotation in a static transform)
-            broadcast_transformStamped.transform.rotation.x = 0.0;
-            broadcast_transformStamped.transform.rotation.y = 0.0;
-            broadcast_transformStamped.transform.rotation.z = 0.0;
-            broadcast_transformStamped.transform.rotation.w = 1.0;
+            // // Set the rotation (no rotation in a static transform)
+            // broadcast_transformStamped.transform.rotation.x = 0.0;
+            // broadcast_transformStamped.transform.rotation.y = 0.0;
+            // broadcast_transformStamped.transform.rotation.z = 0.0;
+            // broadcast_transformStamped.transform.rotation.w = 1.0;
+
+            double direction_x = (this->centroid1_x - this->centroid0_x) / 2.0;
+            double direction_y = (this->centroid1_y - this->centroid0_y) / 2.0;
+
+            // Calculate the rotation quaternion
+            tf2::Quaternion rotation_quaternion;
+            rotation_quaternion.setRPY(0.0, 0.0, atan2(direction_y, direction_x));
+
+            // Swap x and y components to achieve the desired orientation
+            broadcast_transformStamped.transform.rotation.x = rotation_quaternion.y();
+            broadcast_transformStamped.transform.rotation.y = -rotation_quaternion.x();  // Negate to maintain orientation
+            broadcast_transformStamped.transform.rotation.z = rotation_quaternion.z();
+            broadcast_transformStamped.transform.rotation.w = rotation_quaternion.w();
 
             // Publish the static transform
             tf_static_broadcaster_->sendTransform(broadcast_transformStamped);
@@ -283,23 +296,23 @@ class FinalApproachService : public rclcpp::Node
                         double error_orientation = calculateOrientationError(transform);
                         RCLCPP_INFO(this->get_logger(),"error_d : %f", error_distance);
                         RCLCPP_INFO(this->get_logger(),"error_y : %f", error_yaw);
-                        RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
+                        RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
                         geometry_msgs::msg::Twist twist;
                         if (error_distance < 0.5 && std::abs(error_yaw) < 0.05){
                         //  if (error_yaw < 0.05){
-                            // RCLCPP_DEBUG(this->get_logger(),"Early stage");
-                            // if (std::abs(error_orientation)>0.01)
-                            // {   
-                            //     // RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
-                            //     RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
-                            //     twist.linear.x = 0.0; 
-                            //     twist.angular.z = kp_orient * error_orientation;
-                            //     robot_cmd_vel_publisher->publish(twist);
-                            // }
-                            // else{
+                        //     RCLCPP_DEBUG(this->get_logger(),"Early stage");
+                        //     if (std::abs(error_orientation)>0.01)
+                        //     {   
+                        //         // RCLCPP_INFO(this->get_logger(),"error_orient : %f", error_orientation);
+                        //         RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
+                        //         twist.linear.x = 0.0; 
+                        //         twist.angular.z = kp_orient * error_orientation;
+                        //         robot_cmd_vel_publisher->publish(twist);
+                        //     }
+                        //     else{
                                 should_set_final_goal = true;
-                            // }
-                        }
+                        //     }
+                        // }
                         // else if (should_set_yaw_goal)
                         // {
                         //     if (error_yaw>0.05) {
@@ -311,7 +324,7 @@ class FinalApproachService : public rclcpp::Node
                         //     else {
                         //         should_set_final_goal = true;
                         //     }
-                        // }
+                        }
                         else{
                             RCLCPP_DEBUG(this->get_logger(), "I have Entered pub ");
                             twist.linear.x = 0.10; //kp_distance * error_distance; 

@@ -30,7 +30,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: LaserScan
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -78,33 +78,73 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        map:
+        cleaner_2/base_footprint:
           Value: true
-        turtlebot_5_base_footprint:
+        cleaner_2/base_link:
           Value: true
-        turtlebot_5_base_link:
+        cleaner_2/bump_front_center:
           Value: true
-        turtlebot_5_caster_back_link:
+        cleaner_2/bump_front_left:
           Value: true
-        turtlebot_5_caster_front_link:
+        cleaner_2/bump_front_right:
           Value: true
-        turtlebot_5_cliff_sensor_front_link:
+        cleaner_2/bump_left:
           Value: true
-        turtlebot_5_cliff_sensor_left_link:
+        cleaner_2/bump_right:
           Value: true
-        turtlebot_5_cliff_sensor_right_link:
+        cleaner_2/button_1:
           Value: true
-        turtlebot_5_gyro_link:
+        cleaner_2/button_2:
           Value: true
-        turtlebot_5_laser_link:
+        cleaner_2/button_power:
           Value: true
-        turtlebot_5_odom:
+        cleaner_2/caster_back_link:
           Value: true
-        turtlebot_5_plate_bottom_link:
+        cleaner_2/caster_front_link:
           Value: true
-        turtlebot_5_plate_middle_link:
+        cleaner_2/cliff_front_left:
           Value: true
-        turtlebot_5_plate_top_link:
+        cleaner_2/cliff_front_right:
+          Value: true
+        cleaner_2/cliff_sensor_front_link:
+          Value: true
+        cleaner_2/cliff_sensor_left_link:
+          Value: true
+        cleaner_2/cliff_sensor_right_link:
+          Value: true
+        cleaner_2/cliff_side_left:
+          Value: true
+        cleaner_2/cliff_side_right:
+          Value: true
+        cleaner_2/gyro_link:
+          Value: true
+        cleaner_2/imu:
+          Value: true
+        cleaner_2/ir_intensity_front_center_left:
+          Value: true
+        cleaner_2/ir_intensity_front_center_right:
+          Value: true
+        cleaner_2/ir_intensity_front_left:
+          Value: true
+        cleaner_2/ir_intensity_front_right:
+          Value: true
+        cleaner_2/ir_intensity_left:
+          Value: true
+        cleaner_2/ir_intensity_right:
+          Value: true
+        cleaner_2/ir_intensity_side_left:
+          Value: true
+        cleaner_2/ir_omni:
+          Value: true
+        cleaner_2/laser_sensor_link:
+          Value: true
+        cleaner_2/left_wheel:
+          Value: true
+        cleaner_2/mouse:
+          Value: true
+        cleaner_2/odom:
+          Value: true
+        cleaner_2/right_wheel:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -112,30 +152,7 @@ Visualization Manager:
       Show Axes: true
       Show Names: false
       Tree:
-        map:
-          turtlebot_5_odom:
-            turtlebot_5_base_footprint:
-              turtlebot_5_base_link:
-                turtlebot_5_caster_back_link:
-                  {}
-                turtlebot_5_caster_front_link:
-                  {}
-                turtlebot_5_cliff_sensor_front_link:
-                  {}
-                turtlebot_5_cliff_sensor_left_link:
-                  {}
-                turtlebot_5_cliff_sensor_right_link:
-                  {}
-                turtlebot_5_gyro_link:
-                  {}
-                turtlebot_5_laser_link:
-                  {}
-                turtlebot_5_plate_bottom_link:
-                  {}
-                turtlebot_5_plate_middle_link:
-                  {}
-                turtlebot_5_plate_top_link:
-                  {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -168,7 +185,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /turtlebot_5/scan_filtered
+        Value: /cleaner_2/scan
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -304,15 +321,13 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /global_costmap/published_footprint
+        Value: /cleaner_2/global_costmap/published_footprint
       Value: true
     - Class: rviz_default_plugins/MarkerArray
       Enabled: true
       Name: MarkerArray
       Namespaces:
-        centroids: true
-        id: true
-        segments: true
+        {}
       Topic:
         Depth: 5
         Durability Policy: Volatile

@@ -59,6 +59,9 @@ class laserSegmentation: public rclcpp::Node{
         void odom_callback(const std::shared_ptr<nav_msgs::msg::Odometry> msg);
 		void show_visualization(std_msgs::msg::Header header, std::vector<slg::Segment2D> segmentList);
         double calculateAngle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3);
+        double distSq(const slg::Segment2D& seg1, const slg::Segment2D& seg2);
+        bool isSquare(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3, const slg::Segment2D& seg4);
+        bool isRightAngledTriangle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3);
 		std_msgs::msg::ColorRGBA get_parula_color(unsigned int index, unsigned int max);
 		std_msgs::msg::ColorRGBA get_palette_color(unsigned int index);
 };

@@ -3,6 +3,9 @@
 #include "laser_segmentation/laserSegmentation.hpp"
 #include "nav_msgs/msg/detail/odometry__struct.hpp"
 #include "std_msgs/msg/detail/header__struct.hpp"
+#include <vector>
+#include <unordered_map>
+// #include <algorithm>
 
 /* Initialize the subscribers and publishers */
 laserSegmentation::laserSegmentation()
@@ -312,6 +315,66 @@ void laserSegmentation::odom_callback(
   this->odom_header = msg->header;
 }
 
+double laserSegmentation::distSq(const slg::Segment2D& seg1, const slg::Segment2D& seg2)
+{
+    double distsq = ((seg1.centroid() - seg2.centroid()).length_squared());
+    if (distsq >= (0.48*0.48) && distsq <= (0.499*0.499))
+    {
+        return (0.485*0.485);
+    }
+    else if (distsq >= (0.48*0.48*2) && distsq <=(0.499*0.499*2)) {
+        return (0.485*0.485*2);
+    }
+    else {
+        return distsq;
+    }
+}
+
+bool laserSegmentation::isSquare(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3, const slg::Segment2D& seg4){
+    double d2 = distSq(seg1, seg2);
+    double d3 = distSq(seg1, seg3);
+    double d4 = distSq(seg1, seg4);
+
+    if (d2 == 0 || d3 == 0 || d4 == 0)
+        return false;
+
+    if (d2 == d3 && 2 * d2 == d4
+        && 2 * distSq(seg2, seg4) == distSq(seg2, seg3)) {
+        return true;
+    }
+ 
+    // The below two cases are similar to above case
+    if (d3 == d4 && 2 * d3 == d2
+        && 2 * distSq(seg3, seg2) == distSq(seg3, seg4)) {
+        return true;
+    }
+    if (d2 == d4 && 2 * d2 == d3
+        && 2 * distSq(seg2, seg3) == distSq(seg2, seg4)) {
+        return true;
+    }
+ 
+    return false;
+
+}
+
+bool laserSegmentation::isRightAngledTriangle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3) {
+    double d1 = distSq(seg1, seg2);
+    double d2 = distSq(seg1, seg3);
+    double d3 = distSq(seg2, seg3);
+
+    // Sort the distances to find the hypotenuse
+    std::vector<double> distances = {d1, d2, d3};
+    sort(distances.begin(), distances.end());
+
+    double hypotenuse = distances[2];
+    double side1 = distances[0];
+    double side2 = distances[1];
+
+    // Check if it forms a right-angled triangle
+    return ((hypotenuse==(side1+side2)));
+}
+
+
 // Function to calculate the angle between three segments
 double laserSegmentation::calculateAngle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3) {
     // Calculate vectors using segment centroids
@@ -350,8 +413,8 @@ void laserSegmentation::scan_callback(
   RCLCPP_INFO_ONCE(this->get_logger(), "Subscribed to laser scan topic: [%s]",
                    scan_topic_.c_str());
 
-    double front_angle_min = -M_PI / 4.0;  // Adjust as needed
-    double front_angle_max = M_PI / 4.0;   // Adjust as needed
+    double front_angle_min = -M_PI / 3.0;  // Adjust as needed
+    double front_angle_max = M_PI / 3.0;   // Adjust as needed
 
     // Read the laser scan for the specified range of angles
     std::vector<slg::Point2D> point_list;
@@ -417,159 +480,70 @@ void laserSegmentation::scan_callback(
     
     segment_filtered_list.push_back(segment);
   }
-  
-// const double min_pair_distance = 0.48;  // 0.48 - 0.02
-// const double max_pair_distance = 0.499;  // 0.48 + 0.02
-// const double diagonal_min_distance = 0.48 * std::sqrt(2);  // 0.48 * sqrt(2)
-// const double diagonal_max_distance = 0.499 * std::sqrt(2);  // 0.48 * sqrt(2) + 0.02 * sqrt(2)
-
-// std::vector<slg::Segment2D> pre_final_filtered_segments;
-// std::set<slg::Point2D> unique_centroids;
-
-// for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
-//     size_t within_limit_count = 0;
-//     size_t diagonal_count = 0;
-//     size_t total_neighbors = 0;
-
-//     for (size_t j = 0; j < segment_filtered_list.size(); ++j) {
-//         if (i != j) {
-//             double distance_between_segments = (segment_filtered_list[i].centroid() - segment_filtered_list[j].centroid()).length();
-
-//             // Check if the segment is within the desired range with any other segment
-//             if (distance_between_segments >= min_pair_distance && distance_between_segments <= max_pair_distance) {
-//                 within_limit_count++;
-//                 total_neighbors++;
-//             }
-
-//             // Check if the segment is within the diagonal limit with any other segment
-//             if (distance_between_segments >= diagonal_min_distance && distance_between_segments <= diagonal_max_distance) {
-//                 diagonal_count++;
-//                 total_neighbors++;
-//             }
-
-//         }
-//     }
-
-//     // Check if the segment has at least two neighbors within [0.48, 0.499],
-//     // one neighbor within [0.48 * sqrt(2), 0.499 * sqrt(2)], and all neighbors satisfy either condition
-//     if ((within_limit_count <= 2 || within_limit_count >= 2) && diagonal_count >= 1 && within_limit_count + diagonal_count == total_neighbors) {
-//         // Check if centroids are unique before adding to the final list
-//         if (unique_centroids.insert(segment_filtered_list[i].centroid()).second) {
-//             pre_final_filtered_segments.push_back(segment_filtered_list[i]);
-//         }
-//     }
-// }
-
-// for (size_t i = 0; i < pre_final_filtered_segments.size(); ++i) {
-//     for (size_t j = i + 1; j < pre_final_filtered_segments.size(); ++j) {
-//         double distance_between_segments = (pre_final_filtered_segments[i].centroid() - pre_final_filtered_segments[j].centroid()).length();
-//         RCLCPP_INFO(this->get_logger(), "Distance between segment %zu and segment %zu: %f", i, j, distance_between_segments);
-//     }
-// }
-
-const double min_pair_distance = 0.48;  // 0.48 - 0.02
-const double max_pair_distance = 0.499;  // 0.48 + 0.02
-const double diagonal_min_distance = 0.48 * std::sqrt(2);  // 0.48 * sqrt(2)
-const double diagonal_max_distance = 0.499 * std::sqrt(2);  // 0.48 * sqrt(2) + 0.02 * sqrt(2)
-
-std::vector<slg::Segment2D> pre_final_filtered_segments;
-std::set<slg::Point2D> unique_centroids;
-
-for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
-    size_t within_limit_count = 0;
-    size_t diagonal_count = 0;
-    size_t total_neighbors = 0;
-
-    for (size_t j = 0; j < segment_filtered_list.size(); ++j) {
-        if (i != j) {
-            double distance_between_segments = (segment_filtered_list[i].centroid() - segment_filtered_list[j].centroid()).length();
-
-            // Check if the segment is within the desired range with any other segment
-            if (distance_between_segments >= min_pair_distance && distance_between_segments <= max_pair_distance) {
-                within_limit_count++;
-                total_neighbors++;
+    
+    bool foundSquare = false;
+    bool foundTriangle = false;
+    std::vector<slg::Segment2D> final_filtered_segments;
+    std::set<slg::Point2D> unique_centroids;
+    if (!foundSquare && !foundTriangle){
+        std::unordered_map<double, std::vector<std::pair<int, int>>> hashTable;
+        for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
+            for (size_t j = i+1; j < segment_filtered_list.size(); ++j) {
+                double distance = distSq(segment_filtered_list[i], segment_filtered_list[j]);
+                if (distance==(0.485*0.485)){
+                    hashTable[distance].push_back({static_cast<int>(i), static_cast<int>(j)});
+                }
             }
-
-            // Check if the segment is within the diagonal limit with any other segment
-            if (distance_between_segments >= diagonal_min_distance && distance_between_segments <= diagonal_max_distance) {
-                diagonal_count++;
-                total_neighbors++;
-            }
-
-        }
-    }
-
-    // Check if the segment has at least two neighbors within [0.48, 0.499],
-    // one neighbor within [0.48 * sqrt(2), 0.499 * sqrt(2)], and all neighbors satisfy either condition
-    // if ((within_limit_count >= 2) && diagonal_count >= 1 && within_limit_count + diagonal_count == total_neighbors) {
-    // if (within_limit_count + diagonal_count >= 2 && within_limit_count + diagonal_count <= 3) {
-    //     // Check if centroids are unique before adding to the final list
-    //     if (unique_centroids.insert(segment_filtered_list[i].centroid()).second) {
-    //         pre_final_filtered_segments.push_back(segment_filtered_list[i]);
-    //     }
-
-    //     // Print information about the counts for each segment i
-    // }
-    if ((within_limit_count + diagonal_count >= 2 && within_limit_count + diagonal_count <= 3) && within_limit_count <= 2 && diagonal_count <= 1) {
-        // Check if centroids are unique before adding to the final list
-        if (unique_centroids.insert(segment_filtered_list[i].centroid()).second) {
-            pre_final_filtered_segments.push_back(segment_filtered_list[i]);
         }
 
-        RCLCPP_INFO(this->get_logger(), "Segment %zu - Total Neighbors: %zu, Within Limit Count: %zu, Diagonal Count: %zu", i, within_limit_count + diagonal_count, within_limit_count, diagonal_count);
-        // Print information about the counts for each segment i
-    }
-}
+        for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
+            for (size_t j = i+1; j < segment_filtered_list.size(); ++j) {
+                double distance = (0.485*0.485);
 
-for (size_t i = 0; i < pre_final_filtered_segments.size(); ++i) {
-    for (size_t j = i + 1; j < pre_final_filtered_segments.size(); ++j) {
-        double distance_between_segments = (pre_final_filtered_segments[i].centroid() - pre_final_filtered_segments[j].centroid()).length();
-        RCLCPP_INFO(this->get_logger(), "Distance between segment %zu and segment %zu: %f", i, j, distance_between_segments);
-    }
-}
+                for (const auto& pair : hashTable[distance]) {
+                    int x = pair.first;
+                    int y = pair.second;
 
-
-
-
-
-// Create a set to keep track of already considered triplets
-std::set<std::tuple<size_t, size_t, size_t>> considered_triplets;
-
-// Create a vector to store the final filtered segments
-std::vector<slg::Segment2D> final_filtered_segments;
-std::set<slg::Point2D> unique_final_centroids;
-
-// Check triplets for right-angled triangles
-for (size_t i = 0; i < pre_final_filtered_segments.size(); ++i) {
-    for (size_t j = 0; j < pre_final_filtered_segments.size(); ++j) {
-        // Avoid comparing the segment with itself
-        if (i != j) {
-            for (size_t k = 0; k < pre_final_filtered_segments.size(); ++k) {
-                // Avoid comparing the segment with itself and with the previous indices
-                if (i != k && j != k) {
-                    double angle = calculateAngle(pre_final_filtered_segments[i], pre_final_filtered_segments[j], pre_final_filtered_segments[k]);
-
-                    // Adjust the threshold as needed for your specific scenario
-                    if (std::abs(angle - 90.0) < 20.0) {
-                        // Check if centroids are unique before adding to the final list
-                        if (unique_final_centroids.insert(pre_final_filtered_segments[i].centroid()).second) {
-                            final_filtered_segments.push_back(pre_final_filtered_segments[i]);
+                    if ((x != static_cast<int>(i) && x != static_cast<int>(j)) &&
+                    (y != static_cast<int>(i) && y != static_cast<int>(j))) {
+                        if (isSquare(segment_filtered_list[i], segment_filtered_list[j], segment_filtered_list[x], segment_filtered_list[y])){
+                            if (unique_centroids.insert(segment_filtered_list[i].centroid()).second &&
+                            unique_centroids.insert(segment_filtered_list[j].centroid()).second &&
+                            unique_centroids.insert(segment_filtered_list[x].centroid()).second &&
+                            unique_centroids.insert(segment_filtered_list[y].centroid()).second) {
+                                final_filtered_segments.push_back(segment_filtered_list[i]);
+                                final_filtered_segments.push_back(segment_filtered_list[j]);
+                                final_filtered_segments.push_back(segment_filtered_list[x]);
+                                final_filtered_segments.push_back(segment_filtered_list[y]);
+                                foundSquare = true;
+                            }
                         }
-                        if (unique_final_centroids.insert(pre_final_filtered_segments[j].centroid()).second) {
-                            final_filtered_segments.push_back(pre_final_filtered_segments[j]);
-                        }
-                        if (unique_final_centroids.insert(pre_final_filtered_segments[k].centroid()).second) {
-                            final_filtered_segments.push_back(pre_final_filtered_segments[k]);
-                        }
-
-                        // Mark the triplet as considered
-                        considered_triplets.insert(std::make_tuple(i, j, k));
                     }
                 }
             }
         }
     }
-}
+    else if (!foundSquare)
+    {
+        for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
+            for (size_t j = i + 1; j < segment_filtered_list.size(); ++j) {
+                for (size_t k = j + 1; k < segment_filtered_list.size(); ++k) {
+                    if (isRightAngledTriangle(segment_filtered_list[i], segment_filtered_list[j], segment_filtered_list[k])) {
+                        if (unique_centroids.insert(segment_filtered_list[i].centroid()).second &&
+                            unique_centroids.insert(segment_filtered_list[j].centroid()).second &&
+                            unique_centroids.insert(segment_filtered_list[k].centroid()).second) {
+                            final_filtered_segments.push_back(segment_filtered_list[i]);
+                            final_filtered_segments.push_back(segment_filtered_list[j]);
+                            final_filtered_segments.push_back(segment_filtered_list[k]);
+                            foundTriangle = true;
+                            }
+                    }
+                }
+            }
+        }
+    }
+        
+
 
 // Step 3: Sort the filtered segments based on centroid length
 std::vector<slg::Segment2D> segment_history_;
@@ -577,7 +551,7 @@ std::sort(final_filtered_segments.begin(), final_filtered_segments.end(),
           [](const slg::Segment2D& a, const slg::Segment2D& b) {
               return a.centroid().length() < b.centroid().length();
           });
-
+RCLCPP_INFO(this->get_logger(), " SORTED SEGMENTS");
 // Print the distance between segments in segment_filtered_list
 for (size_t i = 0; i < final_filtered_segments.size(); ++i) {
     for (size_t j = i + 1; j < final_filtered_segments.size(); ++j) {
