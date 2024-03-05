@@ -67,7 +67,7 @@ class RobotStateMachine(Node):
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
-            "loading_stage_1": [-0.239, 1.24, 0.0, 1.0],
+            "loading_stage_1": [0.4, 0.9, -0.15, 1.0], #[-0.239, 1.24, -0.15, 1.0],
             "loading_stage_2": [1.2, -0.5, 0.707,0.707],
             "door_stage": [5.5, -0.55, 0.0, 1.0],
             "last_stage_1": [10.0, -0.55, 0.0, 1.0],
@@ -389,7 +389,7 @@ class RobotStateMachine(Node):
                 msg.angular.z = -1.0
                 self.publisher_.publish(msg)
                 print('turn with table')
-                rate.sleep
+                rate.sleep()
         print('stop')
         msg.linear.x = 0.0
         msg.linear.y = 0.0
@@ -417,11 +417,11 @@ class RobotStateMachine(Node):
     def table_backward(self):
         print("Backing up")
         msg = Twist()
-        duration = Duration(seconds=7) # setting the time decides the backup distance
+        duration = Duration(seconds=5) # setting the time decides the backup distance
         rate = self.create_rate(10, self.get_clock())
         start_time = self.get_clock().now()
         while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
-            msg.linear.x = -0.25
+            msg.linear.x = -0.20
             msg.linear.y = 0.0
             msg.linear.z = 0.0
             msg.angular.x = 0.0
@@ -436,6 +436,73 @@ class RobotStateMachine(Node):
         msg.angular.y = 0.0
         msg.angular.z = 0.0
         self.publisher_.publish(msg)
+    # def table_backward(self):
+    #     # print("Backing up")
+    #     msg = Twist()
+    #     duration = Duration(seconds=7)  # Setting the time decides the backup distance
+    #     rate = self.create_rate(10)
+    #     start_time = self.get_clock().now()
+
+    #     while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
+    #         print("Backing up")
+    #         # Calculate linear speed factor based on elapsed time
+    #         elapsed_time = (self.get_clock().now() - start_time).nanoseconds / 1e9  # Convert to seconds
+    #         speed_factor = max(0, 1 - elapsed_time / duration.seconds)
+
+    #         # Set linear speed with the speed factor
+    #         msg.linear.x = -0.20 * speed_factor
+    #         msg.linear.y = 0.0
+    #         msg.linear.z = 0.0
+    #         msg.angular.x = 0.0
+    #         msg.angular.y = 0.0
+    #         msg.angular.z = 0.0
+    #         self.publisher_.publish(msg)
+    #         rate.sleep()
+
+    #     # Stop the robot
+    #     msg.linear.x = 0.0
+    #     msg.linear.y = 0.0
+    #     msg.linear.z = 0.0
+    #     msg.angular.x = 0.0
+    #     msg.angular.y = 0.0
+    #     msg.angular.z = 0.0
+    #     self.publisher_.publish(msg)
+    # def table_backward(self):
+    #     print("Backing up")
+    #     msg = Twist()
+    #     duration = Duration(seconds=5)  # Setting the time decides the backup distance
+    #     rate = self.create_rate(10)
+    #     start_time = self.get_clock().now()
+
+    #     while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
+    #         print("Backing up")
+    #         # Calculate linear speed factor based on elapsed time
+    #         elapsed_time = (self.get_clock().now() - start_time).nanoseconds / 1e9  # Convert to seconds
+
+    #         # Convert Duration to ROS Duration message and access sec attribute
+    #         duration_sec = duration.to_msg().sec
+
+    #         # Calculate speed factor based on elapsed time
+    #         speed_factor = max(0, 1 - elapsed_time / duration_sec)
+
+    #         # Set linear speed with the speed factor
+    #         msg.linear.x = -0.20 * speed_factor
+    #         msg.linear.y = 0.0
+    #         msg.linear.z = 0.0
+    #         msg.angular.x = 0.0
+    #         msg.angular.y = 0.0
+    #         msg.angular.z = 0.0
+    #         self.publisher_.publish(msg)
+    #         rate.sleep()
+
+    #     # Stop the robot
+    #     msg.linear.x = 0.0
+    #     msg.linear.y = 0.0
+    #     msg.linear.z = 0.0
+    #     msg.angular.x = 0.0
+    #     msg.angular.y = 0.0
+    #     msg.angular.z = 0.0
+    #     self.publisher_.publish(msg)
 
     def timer_callback(self):
         self.timer.cancel()
@@ -490,8 +557,6 @@ class RobotStateMachine(Node):
             #     self.goal_reached = True
             
             if self.stage_number == 1:
-            #     self.set_init_pose()
-                # self.door_transform(5.5,-0.5489)
                 self.go_to_pose(self.robot_stage, "loading_stage_1")
                 time.sleep(5)
                 response = self.send_find_request(True)
@@ -499,9 +564,15 @@ class RobotStateMachine(Node):
                 if response:
                     transform_x, transform_y, rotate= self.get_map_to_pre_loading_frame_transform()
                     self.go_to_table_pose(transform_x, transform_y, rotate)
+                time.sleep(5)
                 response2 = self.send_attach_request(True)
+                print(response2)
+                time.sleep(3)
                 self.stage_number = 2
                 # self.goal_reached=True
+            elif self.stage_number == 2:
+                self.table_backward()
+                self.goal_reached=True
 
             # if self.stage_number == 1:
             # #     self.set_init_pose()
@@ -610,7 +681,7 @@ def main(args=None):
     executor.add_node(state_machine)
     executor.spin()
     # rclpy.spin(state_machine)
-    state_machine.destroy_node()
+    # state_machine.destroy_node()
     rclpy.shutdown()
 
 if __name__ == '__main__':

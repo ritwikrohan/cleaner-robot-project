@@ -119,16 +119,16 @@
 #         map_subscribe_transient_local: True
 #       always_send_full_costmap: True
 
-#   # Not included in course
-#   local_costmap_client:
-#     ros__parameters:
-#       use_sim_time: False
-#   local_costmap_rclcpp_node:
-#     ros__parameters:
-#       use_sim_time: False
+# # Not included in course
+# cleaner_2/local_costmap_client:
+#   ros__parameters:
+#     use_sim_time: False
+# cleaner_2/local_costmap_rclcpp_node:
+#   ros__parameters:
+#     use_sim_time: False
 
 #   # Not included in course
-# controller_server_rclcpp_node:
+# cleaner_2/controller_server_rclcpp_node:
 #   ros__parameters:
 #     use_sim_time: False
         
@@ -156,7 +156,7 @@ controller_server:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.5
-      yaw_goal_tolerance: 0.05
+      yaw_goal_tolerance: 0.2
     # DWB parameters
     FollowPath:
       # plugin: "nav2_rotation_shim_controller::RotationShimController"
@@ -170,11 +170,11 @@ controller_server:
       debug_trajectory_details: True
       min_vel_x: 0.0
       min_vel_y: 0.0
-      max_vel_x: 0.25
+      max_vel_x: 0.20
       max_vel_y: 0.0
-      max_vel_theta: 1.0
+      max_vel_theta: 0.5
       min_speed_xy: 0.0
-      max_speed_xy: 0.35
+      max_speed_xy: 0.20
       min_speed_theta: 0.0
       acc_lim_x: 2.5
       acc_lim_y: 0.0

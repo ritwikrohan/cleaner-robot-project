@@ -5,6 +5,7 @@
 #include "std_msgs/msg/detail/header__struct.hpp"
 #include <vector>
 #include <unordered_map>
+
 // #include <algorithm>
 
 /* Initialize the subscribers and publishers */
@@ -192,6 +193,8 @@ laserSegmentation::laserSegmentation()
       this->create_publisher<visualization_msgs::msg::MarkerArray>(
           seg_topic_ + "/visualization", 10);
 	centroid_pub_ = this->create_publisher<slg_msgs::msg::Centroids>(seg_topic_ + "/centroids", 10);
+    min_pub_ = this->create_publisher<slg_msgs::msg::Centroids>(seg_topic_ + "/min", 10);
+    table_detect_pub_ = this->create_publisher<std_msgs::msg::Bool>("/detect", 10);
 
   // Subscribers
   odom_callback_group_ =
@@ -422,13 +425,13 @@ void laserSegmentation::scan_callback(
     double angle_resolution = scan_msg->angle_increment;
     for (const auto r : scan_msg->ranges) {
         // Check if the angle is within the specified front range
-        if (phi >= front_angle_min && phi <= front_angle_max) {
+        // if (phi >= front_angle_min && phi <= front_angle_max) {
             if (r >= scan_msg->range_min && r <= scan_msg->range_max) {
                 point_list.push_back(slg::Point2D::from_polar_coords(r, phi));
             } else {
                 point_list.push_back(slg::Point2D::NaN());
             }
-        }
+        // }
         phi += angle_resolution;
     }
   // Read the laser scan
@@ -483,9 +486,11 @@ void laserSegmentation::scan_callback(
     
     bool foundSquare = false;
     bool foundTriangle = false;
+    bool checkTriangle = false;
     std::vector<slg::Segment2D> final_filtered_segments;
     std::set<slg::Point2D> unique_centroids;
     if (!foundSquare && !foundTriangle){
+        RCLCPP_DEBUG(this->get_logger(),"I have entered square");
         std::unordered_map<double, std::vector<std::pair<int, int>>> hashTable;
         for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
             for (size_t j = i+1; j < segment_filtered_list.size(); ++j) {
@@ -522,9 +527,11 @@ void laserSegmentation::scan_callback(
                 }
             }
         }
+    RCLCPP_DEBUG(this->get_logger(), "Before entering else if, foundSquare is: %s", foundSquare ? "true" : "false");
     }
-    else if (!foundSquare)
+    if (!foundSquare)
     {
+        RCLCPP_DEBUG(this->get_logger(),"I have entered triangle");
         for (size_t i = 0; i < segment_filtered_list.size(); ++i) {
             for (size_t j = i + 1; j < segment_filtered_list.size(); ++j) {
                 for (size_t k = j + 1; k < segment_filtered_list.size(); ++k) {
@@ -545,18 +552,28 @@ void laserSegmentation::scan_callback(
         
 
 
+    if (final_filtered_segments.size()!=0)
+    {
+        this->detect_message.data = true;
+        table_detect_pub_->publish(detect_message);
+    }
+    else {
+        this->detect_message.data = false;
+        table_detect_pub_->publish(detect_message);
+    } 
 // Step 3: Sort the filtered segments based on centroid length
 std::vector<slg::Segment2D> segment_history_;
 std::sort(final_filtered_segments.begin(), final_filtered_segments.end(),
           [](const slg::Segment2D& a, const slg::Segment2D& b) {
               return a.centroid().length() < b.centroid().length();
           });
-RCLCPP_INFO(this->get_logger(), " SORTED SEGMENTS");
+RCLCPP_DEBUG(this->get_logger(), " SORTED SEGMENTS");
+
 // Print the distance between segments in segment_filtered_list
 for (size_t i = 0; i < final_filtered_segments.size(); ++i) {
     for (size_t j = i + 1; j < final_filtered_segments.size(); ++j) {
         double distance_between_segments = (final_filtered_segments[i].centroid() - final_filtered_segments[j].centroid()).length();
-        RCLCPP_INFO(this->get_logger(), "Distance between segment %zu and segment %zu: %f", i, j, distance_between_segments);
+        RCLCPP_DEBUG(this->get_logger(), "Distance between segment %zu and segment %zu: %f", i, j, distance_between_segments);
     }
 }
 
@@ -574,11 +591,15 @@ for (size_t i = 0; i < final_filtered_segments.size(); ++i) {
         double centroid_distance = (current_centroid - segment_history_[i].centroid()).length();
 
         // Adjust the threshold as needed for your specific scenario
-        if (centroid_distance < 0.5) {
+        if (centroid_distance < 0.3) {
         // If the centroid is close to any centroid in history, assign the same ID
         final_filtered_segments[s].set_id(segment_history_[i].id);
         matched = true;
         current_detected_legs.push_back(final_filtered_segments[s]);
+        // If the matched ID is one of the front leg IDs, store it in the set
+                if (front_leg_ids_.count(final_filtered_segments[s].id) > 0) {
+                    front_leg_ids_.insert(segment_history_[i].id);
+                }
         break;
         }
     }
@@ -587,27 +608,54 @@ for (size_t i = 0; i < final_filtered_segments.size(); ++i) {
         // If the centroid is not close to any centroid in history, assign a new ID
         final_filtered_segments[s].set_id(s + segment_history_.size());
         current_detected_legs.push_back(final_filtered_segments[s]);
+        // If the new ID is one of the front leg IDs, store it in the set
+            if (front_leg_ids_.count(final_filtered_segments[s].id) > 0) {
+                front_leg_ids_.insert(final_filtered_segments[s].id);
+            }
     }
     }
 
     // Update the history with the current detected legs
     segment_history_ = current_detected_legs;
 
+    for (const auto& front_leg_id : front_leg_ids_) {
+        for (auto& leg : segment_history_) {
+            if (leg.id == front_leg_id) {
+                // Update the ID of the front leg to maintain consistency
+                leg.set_id(front_leg_id);
+            }
+        }
+    }
   // Identification of segments and set angular distance
   segment_array_msg.header = scan_msg->header; // this->odom_header;
   for (const auto &segment : final_filtered_segments) {
-		if(segment.id !=2)
-    {
+		if(segment.id < 2)
+        {
 			segment_array_msg.segments.push_back(segment);
 			single_centroid.x = segment.centroid().x;
 			single_centroid.y = segment.centroid().y;
             // single_centroid.x = segment.minimumPoint().x;
 			// single_centroid.y = segment.minimumPoint().y;
+
 			single_centroid.z = segment.id;
 			centroids_array.centroids.push_back(single_centroid); 
+
+                // Use minimum or maximum point based on the sign of coordinates
+            // if (segment.centroid().x >= 0 && segment.centroid().y >= 0) {
+            //         single_min.x = segment.minimumPoint().x;
+            //         single_min.y = segment.minimumPoint().y;
+            //     } else {
+            //         single_min.x = segment.maximumPoint().x;
+            //         single_min.y = segment.minimumPoint().y;
+            //     }
+            single_min.x = segment.nearestPoint().x;
+            single_min.y = segment.nearestPoint().y;
+            single_min.z = segment.id;
+            min_array.centroids.push_back(single_min); 
 		}
 	}
 
+  min_pub_->publish(min_array);
   centroid_pub_->publish(centroids_array);
   segment_pub_->publish(segment_array_msg);
 

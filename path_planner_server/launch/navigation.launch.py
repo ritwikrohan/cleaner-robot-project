@@ -29,21 +29,21 @@
 #                         {'yaml_filename':map_file}]
 #         ),
             
-#         # Node(
-#         #     package='nav2_map_server',
-#         #     executable='map_server',
-#         #     name='filter_mask_server',
-#         #     output='screen',
-#         #     emulate_tty=True,
-#         #     parameters=[filters_yaml]),
+#         Node(
+#             package='nav2_map_server',
+#             executable='map_server',
+#             name='filter_mask_server',
+#             output='screen',
+#             emulate_tty=True,
+#             parameters=[filters_yaml]),
 
-#         # Node(
-#         #     package='nav2_map_server',
-#         #     executable='costmap_filter_info_server',
-#         #     name='costmap_filter_info_server',
-#         #     output='screen',
-#         #     emulate_tty=True,
-#         #     parameters=[filters_yaml]),
+#         Node(
+#             package='nav2_map_server',
+#             executable='costmap_filter_info_server',
+#             name='costmap_filter_info_server',
+#             output='screen',
+#             emulate_tty=True,
+#             parameters=[filters_yaml]),
 
 #         Node(
 #             namespace='cleaner_2',
@@ -54,48 +54,48 @@
 #             parameters=[nav2_yaml],
 #             # remappings=remappings,
 #         ),
-#         # Node(
-#         #     namespace='cleaner_2',
-#         #     package='nav2_controller',
-#         #     executable='controller_server',
-#         #     name='controller_server',
-#         #     output='screen',
-#         #     parameters=[controller_yaml],
-#         #     remappings=remappings),
+#         Node(
+#             namespace='cleaner_2',
+#             package='nav2_controller',
+#             executable='controller_server',
+#             name='controller_server',
+#             output='screen',
+#             parameters=[controller_yaml],
+#             remappings=remappings),
 
-#         # Node(
-#         #     namespace='cleaner_2',
-#         #     package='nav2_planner',
-#         #     executable='planner_server',
-#         #     name='planner_server',
-#         #     output='screen',
-#         #     remappings=remappings,
-#         #     parameters=[planner_yaml]),
+#         Node(
+#             namespace='cleaner_2',
+#             package='nav2_planner',
+#             executable='planner_server',
+#             name='planner_server',
+#             output='screen',
+#             # remappings=remappings,
+#             parameters=[planner_yaml]),
             
-#         # Node(
-#         #     namespace='cleaner_2',
-#         #     package='nav2_behaviors',
-#         #     executable='behavior_server',
-#         #     name='behavior_server',
-#         #     parameters=[recovery_yaml],
-#         #     remappings=remappings,
-#         #     output='screen'),
+#         Node(
+#             namespace='cleaner_2',
+#             package='nav2_behaviors',
+#             executable='behavior_server',
+#             name='behavior_server',
+#             parameters=[recovery_yaml],
+#             remappings=remappings,
+#             output='screen'),
 
-#         # Node(
-#         #     namespace='cleaner_2',
-#         #     package='nav2_bt_navigator',
-#         #     executable='bt_navigator',
-#         #     name='bt_navigator',
-#         #     output='screen',
-#         #     remappings=remappings,
-#         #     parameters=[bt_navigator_yaml]),
+#         Node(
+#             namespace='cleaner_2',
+#             package='nav2_bt_navigator',
+#             executable='bt_navigator',
+#             name='bt_navigator',
+#             output='screen',
+#             # remappings=remappings,
+#             parameters=[bt_navigator_yaml]),
         
-#         # Node(
-#         #     package='attach_table',
-#         #     executable='approach_service_server_node',
-#         #     output='screen',
-#         #     name='approach_service_server',
-#         #     emulate_tty=True),
+#         Node(
+#             package='attach_table',
+#             executable='approach_service_server_node',
+#             output='screen',
+#             name='approach_service_server',
+#             emulate_tty=True),
 
 #         # Node(
 #         #     package = 'laser_segmentation',
@@ -106,14 +106,14 @@
 #         #     emulate_tty = True),
 
 
-#         Node(
-#             package='rviz2',
-#             executable='rviz2',
-#             name='rviz2',
-#             parameters=[{'use_sim_time': False}],
-#             output='screen',
-#             arguments=['-d' + os.path.join(get_package_share_directory('path_planner_server'), 'rviz', 'config.rviz')]
-#         ),
+#         # Node(
+#         #     package='rviz2',
+#         #     executable='rviz2',
+#         #     name='rviz2',
+#         #     parameters=[{'use_sim_time': False}],
+#         #     output='screen',
+#         #     arguments=['-d' + os.path.join(get_package_share_directory('path_planner_server'), 'rviz', 'config.rviz')]
+#         # ),
 
 #         Node(
 #             package='nav2_lifecycle_manager',
@@ -124,14 +124,15 @@
 #                         {'use_sim_time': False},
 #                         {'bond_timeout':0.0},
 #                         {'node_names': ['map_server',
-#                                         'cleaner_2/amcl']}])
-#                                         # 'cleaner_2/controller_server',
-#                                         # 'cleaner_2/planner_server',
-#                                         # 'cleaner_2/behavior_server',
-#                                         # 'cleaner_2/bt_navigator',
-#                                         # 'filter_mask_server',
-#                                         # 'costmap_filter_info_server']}])
+#                                         'cleaner_2/amcl',
+#                                         'cleaner_2/controller_server',
+#                                         'cleaner_2/planner_server',
+#                                         'cleaner_2/behavior_server',
+#                                         'cleaner_2/bt_navigator',
+#                                         'filter_mask_server',
+#                                         'costmap_filter_info_server']}])
 #     ])
+
 
 
 import os
@@ -221,13 +222,20 @@ def generate_launch_description():
             name='approach_service_server',
             emulate_tty=True),
 
-        # Node(
-        #     package = 'laser_segmentation',
-        #     namespace = '',
-        #     executable = 'laser_segmentation',
-        #     name = 'segmentation',
-        #     parameters=[segmentation_yaml],
-        #     emulate_tty = True),
+        Node(
+            package = 'laser_segmentation',
+            namespace = '',
+            executable = 'laser_segmentation',
+            name = 'segmentation',
+            parameters=[segmentation_yaml],
+            emulate_tty = True),
+
+        Node(
+            package = 'find_table',
+            executable = 'find_service_server_node',
+            output='screen',
+            name = 'find_table',
+            emulate_tty = True),
 
 
         Node(

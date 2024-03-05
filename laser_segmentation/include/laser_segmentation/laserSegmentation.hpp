@@ -14,6 +14,8 @@
 #include "visualization_msgs/msg/marker_array.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "geometry_msgs/msg/point.hpp"
+#include "std_msgs/msg/bool.hpp"
+#include <unordered_map> 
 
 // SIMPLE LASER GEOMETRY
 #include "slg_msgs/segment2D.hpp"
@@ -36,6 +38,8 @@ class laserSegmentation: public rclcpp::Node{
 		rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr scan_sub_;
         rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
         rclcpp::Publisher<slg_msgs::msg::Centroids>::SharedPtr centroid_pub_;
+        rclcpp::Publisher<slg_msgs::msg::Centroids>::SharedPtr min_pub_;
+        rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr table_detect_pub_;
 
 		OnSetParametersCallbackHandle::SharedPtr callback_handle_;
 		//std::vector<rclcpp::Parameter> lastConfig_, defaultConfig_;
@@ -52,7 +56,10 @@ class laserSegmentation: public rclcpp::Node{
         slg::Point2D prev_centroid;
         slg_msgs::msg::SegmentArray segment_array_msg;
         slg_msgs::msg::Centroids centroids_array;
+        slg_msgs::msg::Centroids min_array;
         geometry_msgs::msg::Point single_centroid;
+        geometry_msgs::msg::Point single_min;
+        std_msgs::msg::Bool detect_message;
 
 		rcl_interfaces::msg::SetParametersResult parameters_callback(const std::vector<rclcpp::Parameter> &parameters);
 		void scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr scan);
@@ -64,6 +71,9 @@ class laserSegmentation: public rclcpp::Node{
         bool isRightAngledTriangle(const slg::Segment2D& seg1, const slg::Segment2D& seg2, const slg::Segment2D& seg3);
 		std_msgs::msg::ColorRGBA get_parula_color(unsigned int index, unsigned int max);
 		std_msgs::msg::ColorRGBA get_palette_color(unsigned int index);
+        // std::unordered_map<int, slg::Point2D> fixed_id_map_;
+        // int next_fixed_id = 2;
+        std::unordered_set<int> front_leg_ids_;
 };
 
 #endif  // LASER_SEGMENTATION__LASER_SEGMENTATION_HPP_

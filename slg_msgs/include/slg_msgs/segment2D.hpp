@@ -149,6 +149,42 @@ class Segment2D{
             return Point2D(min_x, min_y);
         }
 
+        Point2D maximumPoint() const {
+            // Check if the points vector is not empty
+            if (points.empty()) {
+                // Return a default Point2D or handle the case as needed
+                return Point2D(0.0, 0.0);
+            }
+
+            // Find the maximum x and y values using std::max_element
+            double max_x = std::max_element(points.begin(), points.end(), [](const Point2D& a, const Point2D& b) {
+                return a.x < b.x;
+            })->x;
+
+            double max_y = std::max_element(points.begin(), points.end(), [](const Point2D& a, const Point2D& b) {
+                return a.y < b.y;
+            })->y;
+
+            // Return the Point2D with maximum x and y
+            return Point2D(max_x, max_y);
+        }
+
+        Point2D nearestPoint() const {
+            // Check if the points vector is not empty
+            if (points.empty()) {
+                // Return a default Point2D or handle the case as needed
+                return Point2D(0.0, 0.0);
+            }
+
+            // Find the point with the minimum distance to the origin (0, 0)
+            auto nearestIter = std::min_element(points.begin(), points.end(), [](const Point2D& a, const Point2D& b) {
+                return a.length() < b.length();
+            });
+
+            return *nearestIter;
+        }
+
+
 		double height() const{
 			auto maxPoint = std::max_element(points.begin(), points.end(), [](Point2D p1, Point2D p2){return p1.y < p2.y;});
 			return distance_to(*maxPoint);

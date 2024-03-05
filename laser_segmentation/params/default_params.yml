@@ -36,7 +36,7 @@ segmentation:
     distance_threshold: 0.10
     max_avg_distance_from_sensor: 20.0
     max_points_segment: 100
-    max_segment_width: 0.5
+    max_segment_width: 1.0
     method_threshold: ''
     min_avg_distance_from_sensor: 0.0
     min_points_segment: 0
