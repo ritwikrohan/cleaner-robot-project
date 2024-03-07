@@ -427,12 +427,12 @@ class FindTableService : public rclcpp::Node
             RCLCPP_DEBUG(this->get_logger(),"map_x: %f", this->map_x);
             RCLCPP_DEBUG(this->get_logger(),"map_y: %f", this->map_y);
             // publishNewFrame(1.000980, 0.785102);
-            publishNewFrame(this->map_x, this->map_y);
+            publishNewFrame(this->map_x, this->map_y, this->table_number);
         }
 
         
 
-        void publishNewFrame(double map_x, double map_y) {
+        void publishNewFrame(double map_x, double map_y, int table) {
             // Create a transform message for the new frame
             geometry_msgs::msg::TransformStamped new_frame_transformStamped;
             new_frame_transformStamped.header.stamp = this->now();
@@ -447,8 +447,21 @@ class FindTableService : public rclcpp::Node
             // // Set the rotation for table_number 1
             new_frame_transformStamped.transform.rotation.x = 0.0;
             new_frame_transformStamped.transform.rotation.y = 0.0;
-            new_frame_transformStamped.transform.rotation.z = 0.0;
-            new_frame_transformStamped.transform.rotation.w = 1.0;
+            if (table == 1)
+            {
+                new_frame_transformStamped.transform.rotation.z = 0.0;
+                new_frame_transformStamped.transform.rotation.w = 1.0;
+            }
+            else if (table ==2)
+            {
+                new_frame_transformStamped.transform.rotation.z = -0.707;
+                new_frame_transformStamped.transform.rotation.w = 0.707;
+            }
+            else if (table ==3)
+            {
+                new_frame_transformStamped.transform.rotation.z = 0.707;
+                new_frame_transformStamped.transform.rotation.w = 0.707;
+            }
             
 
             // Publish the new frame transform
@@ -495,6 +508,7 @@ class FindTableService : public rclcpp::Node
         void find_callback(const std::shared_ptr<find_table::srv::FindTable::Request> req, const std::shared_ptr<find_table::srv::FindTable::Response> res) 
         {
             bool find_action = req->look_for_table;
+            this->table_number = req->table_number;
 
             if (find_action)
             {

@@ -223,8 +223,9 @@ class RobotStateMachine(Node):
         rclpy.spin_until_future_complete(self, self.future)
         return self.future.result()
 
-    def send_find_request(self, a):
+    def send_find_request(self, a, b):
         self.req1.look_for_table = a
+        self.req1.table_number = b
         self.future1 = self.find_client.call_async(self.req1)
         rclpy.spin_until_future_complete(self, self.future1)
         return self.future1.result()
@@ -604,17 +605,16 @@ class RobotStateMachine(Node):
             #     self.goal_reached = True
             
             if self.stage_number == 1:
-                # self.down_table()
-                # self.stage_number==2
-                # time.sleep(6)
-                # self.table_backward()
                 self.set_init_pose()
                 self.rotate_robot()
                 self.go_to_pose(self.robot_stage, "loading_stage_1")
+                # self.rotate_robot()
+                # self.go_to_pose(self.robot_stage, "loading_stage_2")
+                # self.goal_reached = True
                 time.sleep(7)
                 max_tries = 5
                 for try_count in range(1, max_tries + 1):
-                    response = self.send_find_request(True)
+                    response = self.send_find_request(True, 1)
                     print(response)
                     
                     if (response.found):
@@ -662,6 +662,7 @@ class RobotStateMachine(Node):
                 self.stage_number = 3
             elif self.stage_number == 3:
                 self.go_to_pose(self.robot_stage, "door_stage")
+                # self.goal_reached=True
                 time.sleep(1)
                 self.go_to_pose(self.robot_stage, "last_stage_1")
                 time.sleep(1)
@@ -681,7 +682,7 @@ class RobotStateMachine(Node):
                 self.go_to_pose(self.robot_stage, "loading_stage_2")
                 max_tries = 5
                 for try_count in range(1, max_tries + 1):
-                    response = self.send_find_request(True)
+                    response = self.send_find_request(True, 2)
                     print(response)
                     
                     if (response.found):
@@ -702,7 +703,7 @@ class RobotStateMachine(Node):
                 self.go_to_pose(self.robot_stage, "loading_stage_3")
                 max_tries = 5
                 for try_count in range(1, max_tries + 1):
-                    response = self.send_find_request(True)
+                    response = self.send_find_request(True, 3)
                     print(response)
                     
                     if (response.found):
@@ -775,7 +776,7 @@ class RobotStateMachine(Node):
                 self.go_to_pose(self.robot_stage, "initial_stage")
                 time.sleep(1)
                 self.set_init_pose()
-                self.rotate_robot()
+                # self.rotate_robot()
                 # self.stage_number = 7      
                 self.goal_reached=True
 
