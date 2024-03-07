@@ -93,12 +93,14 @@ class FindTableService : public rclcpp::Node
         geometry_msgs::msg::Quaternion orientation_quaternion;
         // const int ROLLING_WINDOW_SIZE = 50;
         // std::vector<std::vector<double>> centroid_history(3, std::vector<double>(ROLLING_WINDOW_SIZE, std::numeric_limits<double>::max()));
-        static const int ROLLING_WINDOW_SIZE = 50;
+        static const int ROLLING_WINDOW_SIZE = 100;
         // std::vector<std::vector<double>> centroid_history{3, std::vector<double>(ROLLING_WINDOW_SIZE, std::numeric_limits<double>::max())};
         std::vector<std::vector<double>> centroid_history;
         double min_sum_squares[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
         double selected_x[3] = {0.0, 0.0, 0.0};
         double selected_y[3] = {0.0, 0.0, 0.0};
+        size_t count_;
+        bool foundCentroid = false;
 
         // Circular buffer to store the last 10 messages
         std::deque<bool> recentMessages;
@@ -106,7 +108,7 @@ class FindTableService : public rclcpp::Node
         // Function to update the circular buffer with the latest message
         void updateRecentMessages(bool message) {
             recentMessages.push_back(message);
-            if (recentMessages.size() > 500) {
+            if (recentMessages.size() > 1000) {
                 recentMessages.pop_front();
             }
         }
@@ -170,17 +172,98 @@ class FindTableService : public rclcpp::Node
                 selected_x[id] = current_centroid.x;
                 selected_y[id] = current_centroid.y;
             }
+            }
+
+            if ((distSq(selected_x[0], selected_x[1],selected_y[0],selected_y[1])) == (0.485*0.485))
+            {   
+                foundCentroid = true;
+                // Use the selected centroids for further processing
+                this->centroid0_x = selected_x[0];
+                this->centroid0_y = selected_y[0];
+                // Do further processing with the selected centroid for ID 0
+                // ...
+
+                this->centroid1_x = selected_x[1];
+                this->centroid1_y = selected_y[1];
+            }
+            else {
+                foundCentroid = false;
+            }
         }
 
-        // Use the selected centroids for further processing
-        this->centroid0_x = selected_x[0];
-        this->centroid0_y = selected_y[0];
-        // Do further processing with the selected centroid for ID 0
-        // ...
-
-        this->centroid1_x = selected_x[1];
-        this->centroid1_y = selected_y[1];
+        double distSq(double x0, double x1, double y0, double y1)
+        {
+            double distsq =  (pow(x0 - x1, 2) + pow(y0 - y1, 2)); 
+            if (distsq >= (0.48*0.48) && distsq <= (0.499*0.499))
+            {
+                return (0.485*0.485);
+            }
+            else if (distsq >= (0.48*0.48*2) && distsq <=(0.499*0.499*2)) {
+                return (0.485*0.485*2);
+            }
+            else {
+                return distsq;
+            }
         }
+        // void centroidCallback(const slg_msgs::msg::Centroids::SharedPtr msg)
+        // {
+        //     // Process centroids and update selected_x, selected_y
+        //     for (size_t i = 0; i < msg->centroids.size(); ++i) {
+        //         const auto& current_centroid = msg->centroids[i];
+        //         size_t id = static_cast<size_t>(current_centroid.z);
+
+        //         // Update the centroid history for the corresponding ID
+        //         double sum_squares = current_centroid.x * current_centroid.x + current_centroid.y * current_centroid.y;
+
+        //         centroid_history[id].push_back(sum_squares);
+
+        //         // Keep the history size constant
+        //         if (centroid_history[id].size() > ROLLING_WINDOW_SIZE) {
+        //             centroid_history[id].erase(centroid_history[id].begin());
+        //         }
+
+        //         // Find the minimum sum of squared values for each ID
+        //         min_sum_squares[id] = *std::min_element(centroid_history[id].begin(), centroid_history[id].end());
+
+        //         // Select the centroid with the minimum sum of squared values
+        //         if (sum_squares == min_sum_squares[id]) {
+        //             selected_x[id] = current_centroid.x;
+        //             selected_y[id] = current_centroid.y;
+        //         }
+        //     }
+
+        //     // Increment the count
+        //     count_++;
+
+        //     // Check if we've received enough messages
+        //     if (count_ >= ROLLING_WINDOW_SIZE) {
+        //         processingFunction();
+        //         // Reset the count after processing
+        //         count_ = 0;
+        //     }
+        // }
+
+        // void processingFunction()
+        // {
+        //     // Process the selected centroids
+        //     this->centroid0_x = selected_x[0];
+        //     this->centroid0_y = selected_y[0];
+
+        //     // Do further processing with the selected centroid for ID 0
+        //     // ...
+
+        //     this->centroid1_x = selected_x[1];
+        //     this->centroid1_y = selected_y[1];
+
+        //     // Calculate distance or perform other processing here
+        //     // double distance_between_clusters = sqrt(
+        //     //     ((this->centroid0_x - this->centroid1_x) * (this->centroid0_x - this->centroid1_x)) +
+        //     //     ((this->centroid0_y - this->centroid1_y) * (this->centroid0_y - this->centroid1_y))
+        //     // );
+
+        //     // Do further processing with the calculated distance
+        //     // ...
+        // }
 
 
         double computeDistanceToRobotBase(const geometry_msgs::msg::Point& point) {
@@ -422,7 +505,7 @@ class FindTableService : public rclcpp::Node
                 updateRecentMessages(tableFound);
 
                 // Check if at least one of the last 10 messages is true
-                if (areLast10MessagesTrue()) {
+                if (areLast10MessagesTrue() && foundCentroid) {
                     RCLCPP_INFO(this->get_logger(), "Table Found");
                     publishTransform(this->centroid0_x, this->centroid0_y, this->centroid1_x, this->centroid1_y);
                     res->found = true;
@@ -441,12 +524,26 @@ class FindTableService : public rclcpp::Node
 int main(int argc, char **argv)
 {
     rclcpp::init(argc,argv);
-    auto node = std::make_shared<FindTableService>();
-    rclcpp::executors::MultiThreadedExecutor executor;
-    executor.add_node(node);
-    executor.spin();
-    // rclcpp::spin(node);
+    // auto node = std::make_shared<FindTableService>();
+    // rclcpp::executors::MultiThreadedExecutor executor;
+    // executor.add_node(node);
+    // executor.spin();
+    // // rclcpp::spin(node);
 
+    rclcpp::executors::MultiThreadedExecutor executor;
+
+    // Create a single instance of FindTableService
+    auto node = std::make_shared<FindTableService>();
+    executor.add_node(node);
+
+    while (rclcpp::ok()) {
+        executor.spin_some();  // Process any pending callbacks
+
+        // If there are no more pending callbacks, break out of the loop
+        if (executor.get_number_of_threads() == 0) {
+            break;
+        }
+    }
     rclcpp::shutdown();
 }
 

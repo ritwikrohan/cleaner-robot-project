@@ -84,7 +84,7 @@ class FinalApproachService : public rclcpp::Node
         geometry_msgs::msg::Quaternion orientation_quaternion;
         // const int ROLLING_WINDOW_SIZE = 50;
         // std::vector<std::vector<double>> centroid_history(3, std::vector<double>(ROLLING_WINDOW_SIZE, std::numeric_limits<double>::max()));
-        static const int ROLLING_WINDOW_SIZE = 50;
+        static const int ROLLING_WINDOW_SIZE = 5;
         // std::vector<std::vector<double>> centroid_history{3, std::vector<double>(ROLLING_WINDOW_SIZE, std::numeric_limits<double>::max())};
         std::vector<std::vector<double>> centroid_history;
         double min_sum_squares[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
@@ -173,7 +173,7 @@ class FinalApproachService : public rclcpp::Node
 
             // Set the translation (x, y, z)
             broadcast_transformStamped.transform.translation.x = x;
-            broadcast_transformStamped.transform.translation.y = y;
+            broadcast_transformStamped.transform.translation.y = y+(sign_rotation*0.04);
             broadcast_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
 
             // We keep the z-axis upwards
@@ -357,7 +357,7 @@ class FinalApproachService : public rclcpp::Node
                         RCLCPP_DEBUG(this->get_logger(),"error_y : %f", error_yaw);
                         RCLCPP_DEBUG(this->get_logger(),"error_orient : %f", error_orientation);
                         geometry_msgs::msg::Twist twist;
-                        if (error_distance < 0.5 && std::abs(error_yaw) < 0.05 && !diststop){
+                        if (error_distance < 0.6 && std::abs(error_yaw) < 0.05 && !diststop){
                         //  if (error_yaw < 0.05){
                         //     RCLCPP_DEBUG(this->get_logger(),"Early stage");
                         //     if (std::abs(error_orientation)>0.01)
@@ -453,9 +453,11 @@ class FinalApproachService : public rclcpp::Node
                     RCLCPP_INFO(this->get_logger(), "GOING FORWARD AFTER CORRECTION");
                     
                     rclcpp::Time start_time = this->now();
-                    std::chrono::seconds duration(6); // Move for 4 seconds
+                    std::chrono::seconds duration_seconds(5); // Move for 4 seconds
+                    std::chrono::milliseconds duration_milliseconds(500); // Additional 500 milliseconds
+                    auto total_duration = duration_seconds + duration_milliseconds;
                     rclcpp::Rate small(100);
-                    while (rclcpp::ok() && (this->now() - start_time) < duration) {
+                    while (rclcpp::ok() && (this->now() - start_time) < total_duration) {
                         RCLCPP_DEBUG(this->get_logger(),"TIME: %f", (this->now() - start_time).seconds());
                         // Your control logic here
                         geometry_msgs::msg::Twist default_twist;
@@ -534,9 +536,9 @@ class FinalApproachService : public rclcpp::Node
                     controlLoop();
                     RCLCPP_INFO(this->get_logger(),"Elevator going up.");
                     std::this_thread::sleep_for(std::chrono::seconds(5));
-                    // auto message = std_msgs::msg::String();
-                    // message.data = "";
-                    // elevator_pub_->publish(message);
+                    auto message = std_msgs::msg::String();
+                    message.data = "";
+                    elevator_pub_->publish(message);
                     std::this_thread::sleep_for(std::chrono::seconds(5));
                     res->complete = true;
                 }
