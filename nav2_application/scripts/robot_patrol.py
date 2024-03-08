@@ -14,7 +14,7 @@ from rclpy.executors import MultiThreadedExecutor
 from std_msgs.msg import Empty
 from linkattacher_msgs.srv import AttachLink
 from linkattacher_msgs.srv import DetachLink
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 import tf2_ros
 import tf2_geometry_msgs 
 import math
@@ -54,7 +54,7 @@ class RobotStateMachine(Node):
         self.local_table_footprint_publisher = self.create_publisher(Polygon,"/local_costmap/footprint", 10)
         self.global_table_footprint_publisher = self.create_publisher(Polygon,"/global_costmap/footprint", 10)
         timer_period = 0.5  # seconds
-        self.timer = self.create_timer(timer_period, self.timer_callback)
+        # self.timer = self.create_timer(timer_period, self.timer_callback)
         self.pub_table_down = self.create_publisher(String,'/elevator_down',1)
         self.req_to_attach = True
         self.nav = BasicNavigator()
@@ -68,7 +68,7 @@ class RobotStateMachine(Node):
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
             "loading_stage_1": [0.6, 0.9, -0.15, 1.0], #[-0.239, 1.24, -0.15, 1.0],
-            "loading_stage_2": [-0.42, 1.0, -0.707,0.707],
+            "loading_stage_2": [-0.42, 0.5, -0.707,0.707],
             "loading_stage_3": [-1.18, 1.28, 0.707,0.707],
             "door_stage": [3.30, 1.45, -0.15, 1.0],
             "last_stage_1": [4.47, 0.59, -0.707, 0.707],
@@ -76,7 +76,12 @@ class RobotStateMachine(Node):
             "back_to_initial": [-0.190,0.142 ,-0.1246747,0.9921977]}
         self.stage_number = 1
         self.goal_reached = False
+        self.goal_reached_2 = False
         # Frame:map, Position(1.02507, -0.261939, 0), Orientation(0, 0, 0.708792, 0.705417) = Angle: 1.57557
+        self.pick_table_callback = MutuallyExclusiveCallbackGroup()
+        self.pick_subscriber = self.create_subscription(Bool, '/pick_table_1', self.pick_table_1_cb, 10, callback_group=self.pick_table_callback)
+        self.pick_table_callback_2 = MutuallyExclusiveCallbackGroup()
+        self.pick_subscriber_2 = self.create_subscription(Bool, '/pick_table_2', self.pick_table_2_cb, 10, callback_group=self.pick_table_callback_2)
 
 
     def get_map_to_pre_loading_frame_transform(self):
@@ -92,6 +97,20 @@ class RobotStateMachine(Node):
             self.get_logger().error(f"Error getting transform: {str(e)}")
             return None
 
+
+    def pick_table_1_cb(self, msg):
+        print('Table One Pick Activate')
+        self.table_1_state = msg.data
+        self.stage_number = 1
+        self.table_2_state = False
+        self.control_loop()
+
+    def pick_table_2_cb(self, msg):
+        print('Table One Pick Activate')
+        self.table_2_state = msg.data
+        self.stage_number = 1
+        self.table_1_state = False
+        self.control_loop_2()
 
     def rotate_robot(self):
         msg_vel = Twist()
@@ -439,6 +458,29 @@ class RobotStateMachine(Node):
             self.publisher_.publish(msg)
             rate.sleep
 
+    def table_backward_2(self):
+        print("Backing up")
+        msg = Twist()
+        duration = Duration(seconds=10) # setting the time decides the backup distance #7
+        rate = self.create_rate(10, self.get_clock())
+        start_time = self.get_clock().now()
+        while rclpy.ok() and (self.get_clock().now() - start_time) < duration:
+            msg.linear.x = -0.20
+            msg.linear.y = 0.0
+            msg.linear.z = 0.0
+            msg.angular.x = 0.0
+            msg.angular.y = 0.0
+            msg.angular.z = 0.0
+            self.publisher_.publish(msg)
+            rate.sleep
+        msg.linear.x = 0.0
+        msg.linear.y = 0.0
+        msg.linear.z = 0.0
+        msg.angular.x = 0.0
+        msg.angular.y = 0.0
+        msg.angular.z = 0.0
+        self.publisher_.publish(msg)
+    
     def table_backward(self):
         print("Backing up")
         msg = Twist()
@@ -552,9 +594,9 @@ class RobotStateMachine(Node):
     #     msg.angular.z = 0.0
     #     self.publisher_.publish(msg)
 
-    def timer_callback(self):
-        self.timer.cancel()
-        self.control_loop()
+    # def timer_callback(self):
+    #     self.timer.cancel()
+    #     self.control_loop()
 
     def door_transform(self, x, y):
         static_transformStamped = TransformStamped()
@@ -673,6 +715,189 @@ class RobotStateMachine(Node):
                 self.robot_backward()
                 self.stage_number = 5
             elif self.stage_number==5:
+                self.go_to_pose(self.robot_stage, "initial_stage")
+                time.sleep(1)
+                self.set_init_pose()
+                self.rotate_robot()
+                self.stage_number = 6
+            elif self.stage_number==6:
+                self.go_to_pose(self.robot_stage, "loading_stage_2")
+                max_tries = 5
+                for try_count in range(1, max_tries + 1):
+                    response = self.send_find_request(True, 2)
+                    print(response)
+                    
+                    if (response.found):
+                        transform_x, transform_y, rotate = self.get_map_to_pre_loading_frame_transform()
+                        self.go_to_table_pose(transform_x, transform_y, rotate)
+                        self.stage_number = 16
+                        break  # Exit the loop if successful
+                    else:
+                        print(f"Try {try_count} failed.")
+                    
+                    time.sleep(5)
+
+                    if try_count == max_tries:
+                        self.stage_number = 7
+                        print("Maximum number of tries reached. Exiting.")
+                
+            elif self.stage_number==7:
+                self.go_to_pose(self.robot_stage, "loading_stage_3")
+                max_tries = 5
+                for try_count in range(1, max_tries + 1):
+                    response = self.send_find_request(True, 3)
+                    print(response)
+                    
+                    if (response.found):
+                        transform_x, transform_y, rotate = self.get_map_to_pre_loading_frame_transform()
+                        self.go_to_table_pose(transform_x, transform_y, rotate)
+                        self.stage_number = 17
+                        break  # Exit the loop if successful
+                    else:
+                        print(f"Try {try_count} failed.")
+                    
+                    time.sleep(5)
+
+                    if try_count == max_tries:
+                        self.stage_number = 8
+                        print("Maximum number of tries reached. Exiting.")  
+            
+            elif self.stage_number == 16:
+                time.sleep(5)
+                response2 = self.send_attach_request(True)
+                print(response2)
+                time.sleep(3)
+                self.stage_number = 2
+                # self.goal_reached=True
+            elif self.stage_number == 2:
+                self.table_backward_2()
+                time.sleep(2)
+                self.stage_number = 3
+            elif self.stage_number == 3:
+                self.go_to_pose(self.robot_stage, "door_stage")
+                time.sleep(1)
+                self.go_to_pose(self.robot_stage, "last_stage_1")
+                time.sleep(1)
+                self.down_table()
+                time.sleep(6)
+                self.stage_number=4
+            elif self.stage_number==4:
+                self.robot_backward()
+                self.stage_number = 5
+            elif self.stage_number==5:
+                self.go_to_pose(self.robot_stage, "initial_stage")
+                time.sleep(1)
+                self.set_init_pose()
+                self.rotate_robot()
+                self.stage_number = 7      
+                # self.goal_reached=True
+
+            elif self.stage_number == 17:
+                time.sleep(5)
+                response2 = self.send_attach_request(True)
+                print(response2)
+                time.sleep(3)
+                self.stage_number = 2
+                # self.goal_reached=True
+            elif self.stage_number == 2:
+                self.table_backward()
+                time.sleep(2)
+                self.stage_number = 3
+            elif self.stage_number == 3:
+                self.go_to_pose(self.robot_stage, "door_stage")
+                time.sleep(1)
+                self.go_to_pose(self.robot_stage, "last_stage_1")
+                time.sleep(1)
+                self.down_table()
+                time.sleep(6)
+                self.stage_number=4
+            elif self.stage_number==4:
+                self.robot_backward()
+                self.stage_number = 5
+            elif self.stage_number==5:
+                self.go_to_pose(self.robot_stage, "initial_stage")
+                time.sleep(1)
+                self.set_init_pose()
+                # self.rotate_robot()
+                # self.stage_number = 7      
+                self.goal_reached=True
+    
+    def control_loop_2(self):
+        # rate = self.node.create_rate(1)
+        while rclpy.ok() and not self.goal_reached_2:
+            # response = self.send_request(True)
+            # if (response):
+            #     self.goal_reached = True
+            
+            # if self.stage_number == 1:
+            #     self.set_init_pose()
+            #     self.rotate_robot()
+            #     self.go_to_pose(self.robot_stage, "loading_stage_1")
+            #     # self.rotate_robot()
+            #     # self.go_to_pose(self.robot_stage, "loading_stage_2")
+            #     # self.goal_reached = True
+            #     time.sleep(7)
+            #     max_tries = 5
+            #     for try_count in range(1, max_tries + 1):
+            #         response = self.send_find_request(True, 1)
+            #         print(response)
+                    
+            #         if (response.found):
+            #             transform_x, transform_y, rotate = self.get_map_to_pre_loading_frame_transform()
+            #             self.go_to_table_pose(transform_x, transform_y, rotate)
+            #             self.stage_number= 15
+            #             break  # Exit the loop if successful
+            #         else:
+            #             print(f"Try {try_count} failed.")
+                    
+            #         time.sleep(5)
+
+            #         if try_count == max_tries:
+            #             self.stage_number = 6
+            #             print("Maximum number of tries reached. Exiting.")
+
+            #     # response = self.send_find_request(True)
+            #     # print(response)
+            #     # if response:
+            #     #     transform_x, transform_y, rotate= self.get_map_to_pre_loading_frame_transform()
+            #     #     self.go_to_table_pose(transform_x, transform_y, rotate)
+            #     # else :
+            #     #     response_try_again = self.send_find_request(True)
+            #     #     print(response_try_again)
+            #     #     if response_try_again:
+            #     #         transform_x, transform_y, rotate= self.get_map_to_pre_loading_frame_transform()
+            #     #         self.go_to_table_pose(transform_x, transform_y, rotate)
+            #     #     else :
+            #     #         response_try_3 = self.send_find_request(True)
+            #     #         print(response_try_3)
+            #     #         if response_try_3:
+            #     #             transform_x, transform_y, rotate= self.get_map_to_pre_loading_frame_transform()
+            #     #             self.go_to_table_pose(transform_x, transform_y, rotate)
+
+            # elif self.stage_number == 15:
+            #     time.sleep(5)
+            #     response2 = self.send_attach_request(True)
+            #     print(response2)
+            #     time.sleep(3)
+            #     self.stage_number = 2
+            #     # self.goal_reached=True
+            # elif self.stage_number == 2:
+            #     self.table_backward()
+            #     time.sleep(2)
+            #     self.stage_number = 3
+            # elif self.stage_number == 3:
+            #     self.go_to_pose(self.robot_stage, "door_stage")
+            #     # self.goal_reached=True
+            #     time.sleep(1)
+            #     self.go_to_pose(self.robot_stage, "last_stage_1")
+            #     time.sleep(1)
+            #     self.down_table()
+            #     time.sleep(6)
+            #     self.stage_number=4
+            # elif self.stage_number==4:
+            #     self.robot_backward()
+            #     self.stage_number = 5
+            if self.stage_number==1:
                 self.go_to_pose(self.robot_stage, "initial_stage")
                 time.sleep(1)
                 self.set_init_pose()
