@@ -93,7 +93,7 @@ class FindTableService : public rclcpp::Node
         geometry_msgs::msg::Quaternion orientation_quaternion;
         // const int ROLLING_WINDOW_SIZE = 50;
         // std::vector<std::vector<double>> centroid_history(3, std::vector<double>(ROLLING_WINDOW_SIZE, std::numeric_limits<double>::max()));
-        static const int ROLLING_WINDOW_SIZE = 100;
+        static const int ROLLING_WINDOW_SIZE = 50;
         // std::vector<std::vector<double>> centroid_history{3, std::vector<double>(ROLLING_WINDOW_SIZE, std::numeric_limits<double>::max())};
         std::vector<std::vector<double>> centroid_history;
         double min_sum_squares[3] = {std::numeric_limits<double>::max(), std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
@@ -108,7 +108,7 @@ class FindTableService : public rclcpp::Node
         // Function to update the circular buffer with the latest message
         void updateRecentMessages(bool message) {
             recentMessages.push_back(message);
-            if (recentMessages.size() > 1000) {
+            if (recentMessages.size() > 10) {
                 recentMessages.pop_front();
             }
         }
@@ -126,70 +126,126 @@ class FindTableService : public rclcpp::Node
 
 
         // Using centroid of the legs to calculate a middle point of two legs to create a static tf
+        // void centroidCallback(const std::shared_ptr<slg_msgs::msg::Centroids> msg)
+        // {   
+
+        //     double centroidA_x = 0.0;
+        //     double centroidA_y = 0.0;
+        //     double centroidB_x = 0.0;
+        //     double centroidB_y = 0.0;
+
+        //     // Find centroids with ID 0 and 1
+        //     for (size_t i = 0; i < msg->centroids.size(); ++i)
+        //     {
+        //         const auto &current_centroid = msg->centroids[i];
+        //         if (current_centroid.z == 0.0)
+        //         {
+        //             centroidA_x = current_centroid.x;
+        //             centroidA_y = current_centroid.y;
+        //         }
+        //         else if (current_centroid.z == 1.0)
+        //         {
+        //             centroidB_x = current_centroid.x;
+        //             centroidB_y = current_centroid.y;
+        //         }
+        //     }
+
+        //     // Calculate the distance between centroids with ID 0 and 1
+        //     double distance = std::sqrt(std::pow(centroidB_x - centroidA_x, 2) + std::pow(centroidB_y - centroidA_y, 2));
+
+        //     // Log the distance
+        //     RCLCPP_INFO(this->get_logger(), "Distance between centroids 0 and 1: %f", distance);
+
+        //     for (size_t i = 0; i < msg->centroids.size(); ++i) {
+        //     const auto& current_centroid = msg->centroids[i];
+        //     size_t id = static_cast<size_t>(current_centroid.z);
+
+        //     // Update the centroid history for the corresponding ID
+        //     double sum_squares = current_centroid.x * current_centroid.x + current_centroid.y * current_centroid.y;
+            
+        //     centroid_history[id].push_back(sum_squares);
+            
+        //     // Keep the history size constant
+        //     if (centroid_history[id].size() > ROLLING_WINDOW_SIZE) {
+        //         centroid_history[id].erase(centroid_history[id].begin());
+        //     }
+
+        //     // Find the minimum sum of squared values for each ID
+        //     min_sum_squares[id] = *std::min_element(centroid_history[id].begin(), centroid_history[id].end());
+        //         RCLCPP_INFO(this->get_logger(), "ID %zu - min_sum_squares: %f, sum_squares: %f", id, min_sum_squares[id], sum_squares);
+        //     // Select the centroid with the minimum sum of squared values
+        //     if (sum_squares == min_sum_squares[id]) {
+        //         selected_x[id] = current_centroid.x;
+        //         selected_y[id] = current_centroid.y;
+        //     }
+        //         // RCLCPP_INFO(this->get_logger(), "Centroid History for ID %zu:", id);
+        //         // for (const auto& value : centroid_history[id]) {
+        //         //     RCLCPP_INFO(this->get_logger(), "  %f", value);
+        //         // }
+        //     }
+
+        //     if ((distSq(selected_x[0], selected_x[1],selected_y[0],selected_y[1])) == (0.485*0.485))
+        //     {   
+        //         foundCentroid = true;
+        //         // Use the selected centroids for further processing
+        //         this->centroid0_x = selected_x[0];
+        //         this->centroid0_y = selected_y[0];
+        //         // Do further processing with the selected centroid for ID 0
+        //         // ...
+
+        //         this->centroid1_x = selected_x[1];
+        //         this->centroid1_y = selected_y[1];
+        //     }
+        //     else {
+        //         foundCentroid = false;
+        //     }
+        // }
+
         void centroidCallback(const std::shared_ptr<slg_msgs::msg::Centroids> msg)
-        {   
-            // for (size_t i = 0; i < msg->centroids.size(); ++i)
-            // {
-            //     const auto& current_centroid = msg->centroids[i];
-            //     if (current_centroid.z == 0.0)
-            //     {
-            //         this->centroid0_x = current_centroid.x;
-            //         this->centroid0_y = current_centroid.y;
-            //     }
-            //     else if (current_centroid.z == 1.0) 
-            //     {
-            //         this->centroid1_x = current_centroid.x;
-            //         this->centroid1_y = current_centroid.y;
-            //     }
-            //     else if (current_centroid.z == 2.0) 
-            //     {
-            //         this->centroid2_x = current_centroid.x;
-            //         this->centroid2_y = current_centroid.y;
-            //     }
-            // }
-            // this->x = (this->centroid0_x + this->centroid1_x)/2.0;
-            // this->y = (this->centroid0_y + this->centroid1_y)/2.0;
-            // this->distance_between_clusters =  sqrt(((this->centroid0_x - this->centroid1_x) * (this->centroid0_x - this->centroid1_x)) + ((this->centroid0_y - this->centroid1_y) * (this->centroid0_y - this->centroid1_y)));
-            for (size_t i = 0; i < msg->centroids.size(); ++i) {
-            const auto& current_centroid = msg->centroids[i];
-            size_t id = static_cast<size_t>(current_centroid.z);
+        {
+            double centroidA_x = 0.0;
+            double centroidA_y = 0.0;
+            double centroidB_x = 0.0;
+            double centroidB_y = 0.0;
 
-            // Update the centroid history for the corresponding ID
-            double sum_squares = current_centroid.x * current_centroid.x + current_centroid.y * current_centroid.y;
-            
-            centroid_history[id].push_back(sum_squares);
-            
-            // Keep the history size constant
-            if (centroid_history[id].size() > ROLLING_WINDOW_SIZE) {
-                centroid_history[id].erase(centroid_history[id].begin());
+            // Find centroids with ID 0 and 1
+            for (size_t i = 0; i < msg->centroids.size(); ++i)
+            {
+                const auto &current_centroid = msg->centroids[i];
+                if (current_centroid.z == 0.0)
+                {
+                    centroidA_x = current_centroid.x;
+                    centroidA_y = current_centroid.y;
+                }
+                else if (current_centroid.z == 1.0)
+                {
+                    centroidB_x = current_centroid.x;
+                    centroidB_y = current_centroid.y;
+                }
             }
 
-            // Find the minimum sum of squared values for each ID
-            min_sum_squares[id] = *std::min_element(centroid_history[id].begin(), centroid_history[id].end());
+            // Calculate the distance between centroids with ID 0 and 1
+            double distance = std::sqrt(std::pow(centroidB_x - centroidA_x, 2) + std::pow(centroidB_y - centroidA_y, 2));
 
-            // Select the centroid with the minimum sum of squared values
-            if (sum_squares == min_sum_squares[id]) {
-                selected_x[id] = current_centroid.x;
-                selected_y[id] = current_centroid.y;
-            }
-            }
+            // Log the distance
+            // RCLCPP_INFO(this->get_logger(), "Distance between centroids 0 and 1: %f", distance);
 
-            if ((distSq(selected_x[0], selected_x[1],selected_y[0],selected_y[1])) == (0.485*0.485))
-            {   
+            if (distance >= 0.48 && distance <= 0.499)
+            {
                 foundCentroid = true;
                 // Use the selected centroids for further processing
-                this->centroid0_x = selected_x[0];
-                this->centroid0_y = selected_y[0];
-                // Do further processing with the selected centroid for ID 0
-                // ...
+                this->centroid0_x = centroidA_x;
+                this->centroid0_y = centroidA_y;
 
-                this->centroid1_x = selected_x[1];
-                this->centroid1_y = selected_y[1];
+                this->centroid1_x = centroidB_x;
+                this->centroid1_y = centroidB_y;
             }
-            else {
+            else
+            {
                 foundCentroid = false;
             }
         }
+
 
         double distSq(double x0, double x1, double y0, double y1)
         {
@@ -385,8 +441,35 @@ class FindTableService : public rclcpp::Node
 
                     this->map_x = map_transform.transform.translation.x;
                     this->map_y = map_transform.transform.translation.y;
-                    // this->orientation_quaternion = map_transform.transform.rotation;
+                    this->orientation_quaternion = map_transform.transform.rotation;
+                    // Assuming this->orientation_quaternion is a geometry_msgs::msg::Quaternion
+                    geometry_msgs::msg::Quaternion orientation_msg = this->orientation_quaternion;
 
+                    // Convert geometry_msgs::msg::Quaternion to tf2::Quaternion
+                    tf2::Quaternion orientation_tf2;
+                    tf2::fromMsg(orientation_msg, orientation_tf2);
+
+                    // Create a tf2::Quaternion for the desired rotation around the x-axis
+                    tf2::Quaternion rotation_quaternion;
+                    rotation_quaternion.setRPY(M_PI, 0.0, 0.0);  // Rotate 180 degrees around the x-axis
+
+                    // Now you can perform the rotation
+                    tf2::Quaternion rotated_quaternion = rotation_quaternion * orientation_tf2;
+
+                    // Convert tf2::Quaternion back to geometry_msgs::msg::Quaternion
+                    this->orientation_quaternion = tf2::toMsg(rotated_quaternion);
+
+                    // geometry_msgs::msg::Quaternion orientation_msg = this->orientation_quaternion;
+
+                    // // Convert geometry_msgs::msg::Quaternion to tf2::Quaternion
+                    // tf2::Quaternion orientation_tf2;
+                    // tf2::fromMsg(orientation_msg, orientation_tf2);
+
+                    // // Now you can perform the rotation
+                    // tf2::Quaternion rotated_quaternion = rotation_quaternion * orientation_tf2;
+
+                    // // Convert tf2::Quaternion back to geometry_msgs::msg::Quaternion
+                    // this->orientation_quaternion = tf2::toMsg(rotated_quaternion);
                     // Create a quaternion representing a 180-degree rotation around the y-axis
                     // Create a quaternion representing a 180-degree rotation around the y-axis
                     // tf2::Quaternion rotation_quaternion(
@@ -445,23 +528,24 @@ class FindTableService : public rclcpp::Node
             new_frame_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
             // new_frame_transformStamped.transform.rotation = orientation;
             // // Set the rotation for table_number 1
-            new_frame_transformStamped.transform.rotation.x = 0.0;
-            new_frame_transformStamped.transform.rotation.y = 0.0;
-            if (table == 1)
-            {
-                new_frame_transformStamped.transform.rotation.z = 0.0;
-                new_frame_transformStamped.transform.rotation.w = 1.0;
-            }
-            else if (table ==2)
-            {
-                new_frame_transformStamped.transform.rotation.z = -0.707;
-                new_frame_transformStamped.transform.rotation.w = 0.707;
-            }
-            else if (table ==3)
-            {
-                new_frame_transformStamped.transform.rotation.z = 0.707;
-                new_frame_transformStamped.transform.rotation.w = 0.707;
-            }
+            new_frame_transformStamped.transform.rotation = this->orientation_quaternion;
+            // new_frame_transformStamped.transform.rotation.x = 0.0;
+            // new_frame_transformStamped.transform.rotation.y = 0.0;
+            // if (table == 1)
+            // {
+            //     new_frame_transformStamped.transform.rotation.z = 0.0;
+            //     new_frame_transformStamped.transform.rotation.w = 1.0;
+            // }
+            // else if (table ==2)
+            // {
+            //     new_frame_transformStamped.transform.rotation.z = -0.707;
+            //     new_frame_transformStamped.transform.rotation.w = 0.707;
+            // }
+            // else if (table ==3)
+            // {
+            //     new_frame_transformStamped.transform.rotation.z = 0.707;
+            //     new_frame_transformStamped.transform.rotation.w = 0.707;
+            // }
             
 
             // Publish the new frame transform
@@ -517,8 +601,11 @@ class FindTableService : public rclcpp::Node
 
                 // Update the circular buffer with the latest message
                 updateRecentMessages(tableFound);
-
                 // Check if at least one of the last 10 messages is true
+                RCLCPP_INFO(this->get_logger(), "areLast100MessagesTrue: %s, foundCentroid: %s",
+            areLast10MessagesTrue() ? "true" : "false",
+            foundCentroid ? "true" : "false");
+
                 if (areLast10MessagesTrue() && foundCentroid) {
                     RCLCPP_INFO(this->get_logger(), "Table Found");
                     publishTransform(this->centroid0_x, this->centroid0_y, this->centroid1_x, this->centroid1_y);

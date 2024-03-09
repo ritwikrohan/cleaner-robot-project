@@ -425,13 +425,13 @@ void laserSegmentation::scan_callback(
     double angle_resolution = scan_msg->angle_increment;
     for (const auto r : scan_msg->ranges) {
         // Check if the angle is within the specified front range
-        if (phi >= front_angle_min && phi <= front_angle_max) {
+        // if (phi >= front_angle_min && phi <= front_angle_max) {
             if (r >= scan_msg->range_min && r <= scan_msg->range_max) {
                 point_list.push_back(slg::Point2D::from_polar_coords(r, phi));
             } else {
                 point_list.push_back(slg::Point2D::NaN());
             }
-        }
+        // }
         phi += angle_resolution;
     }
   // Read the laser scan

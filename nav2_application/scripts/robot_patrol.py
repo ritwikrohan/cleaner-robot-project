@@ -67,7 +67,7 @@ class RobotStateMachine(Node):
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster(self)
         self.robot_stage = {
             "initial_stage": [0.0, 0.0, 0.0 , 1.0],
-            "loading_stage_1": [0.6, 0.9, -0.15, 1.0], #[-0.239, 1.24, -0.15, 1.0],
+            "loading_stage_1": [0.6, 0.6, -0.15, 1.0], #[-0.239, 1.24, -0.15, 1.0],
             "loading_stage_2": [-0.42, 0.5, -0.707,0.707],
             "loading_stage_3": [-1.18, 1.28, 0.707,0.707],
             "door_stage": [3.30, 1.45, -0.15, 1.0],
