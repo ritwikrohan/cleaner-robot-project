@@ -227,11 +227,18 @@ class FindTableService : public rclcpp::Node
             // Calculate the distance between centroids with ID 0 and 1
             double distance = std::sqrt(std::pow(centroidB_x - centroidA_x, 2) + std::pow(centroidB_y - centroidA_y, 2));
 
-            // Log the distance
-            // RCLCPP_INFO(this->get_logger(), "Distance between centroids 0 and 1: %f", distance);
-
-            if (distance >= 0.48 && distance <= 0.499)
+            if (distance >= 0.48 && distance <= 0.499 && (std::abs(centroidA_x - centroidB_x)<0.3394))
             {
+                // Calculate the angle in radians using atan2
+                double angle_rad = std::atan2(centroidB_y - centroidA_y, centroidB_x - centroidA_x);
+
+                // Convert the angle from radians to degrees
+                double angle_deg = angle_rad * 180.0 / M_PI;
+
+                // Log the information together
+                // RCLCPP_INFO(this->get_logger(), "Centroid 0: (%f, %f), Centroid 1: (%f, %f), Distance: %f, Angle: %f degrees",
+                            // centroidA_x, centroidA_y, centroidB_x, centroidB_y, distance, angle_deg);
+
                 foundCentroid = true;
                 // Use the selected centroids for further processing
                 this->centroid0_x = centroidA_x;
@@ -368,8 +375,9 @@ class FindTableService : public rclcpp::Node
             double dotProduct = vectorPerpendicular.x * vectorAB.x + vectorPerpendicular.y * vectorAB.y;
             if (dotProduct < 0) {
                 // Reverse the direction of the perpendicular vector
-                vectorPerpendicular.x = -vectorPerpendicular.x;
-                vectorPerpendicular.y = -vectorPerpendicular.y;
+                vectorPerpendicular.x = vectorPerpendicular.x;
+                vectorPerpendicular.y = vectorPerpendicular.y;
+                RCLCPP_INFO(this->get_logger(), "Hello Lebron");
             }
 
             // Compute the two possible points D1 and D2
@@ -528,24 +536,24 @@ class FindTableService : public rclcpp::Node
             new_frame_transformStamped.transform.translation.z = 0.0;  // Z is usually 0 for 2D transforms
             // new_frame_transformStamped.transform.rotation = orientation;
             // // Set the rotation for table_number 1
-            new_frame_transformStamped.transform.rotation = this->orientation_quaternion;
-            // new_frame_transformStamped.transform.rotation.x = 0.0;
-            // new_frame_transformStamped.transform.rotation.y = 0.0;
-            // if (table == 1)
-            // {
-            //     new_frame_transformStamped.transform.rotation.z = 0.0;
-            //     new_frame_transformStamped.transform.rotation.w = 1.0;
-            // }
-            // else if (table ==2)
-            // {
-            //     new_frame_transformStamped.transform.rotation.z = -0.707;
-            //     new_frame_transformStamped.transform.rotation.w = 0.707;
-            // }
-            // else if (table ==3)
-            // {
-            //     new_frame_transformStamped.transform.rotation.z = 0.707;
-            //     new_frame_transformStamped.transform.rotation.w = 0.707;
-            // }
+            // new_frame_transformStamped.transform.rotation = this->orientation_quaternion;
+            new_frame_transformStamped.transform.rotation.x = 0.0;
+            new_frame_transformStamped.transform.rotation.y = 0.0;
+            if (table == 1)
+            {
+                new_frame_transformStamped.transform.rotation.z = 0.0;
+                new_frame_transformStamped.transform.rotation.w = 1.0;
+            }
+            else if (table ==2)
+            {
+                new_frame_transformStamped.transform.rotation.z = -0.707;
+                new_frame_transformStamped.transform.rotation.w = 0.707;
+            }
+            else if (table ==3)
+            {
+                new_frame_transformStamped.transform.rotation.z = 0.707;
+                new_frame_transformStamped.transform.rotation.w = 0.707;
+            }
             
 
             // Publish the new frame transform

@@ -53,6 +53,8 @@ class RobotStateMachine(Node):
         self.publisher_ = self.create_publisher(Twist, "/turtlebot_5/cmd_vel", 10)
         self.local_table_footprint_publisher = self.create_publisher(Polygon,"/local_costmap/footprint", 10)
         self.global_table_footprint_publisher = self.create_publisher(Polygon,"/global_costmap/footprint", 10)
+        self.status_msg_pub = self.create_publisher(String, "/status_msg", 10)
+        self.status_msg = String()
         timer_period = 0.5  # seconds
         # self.timer = self.create_timer(timer_period, self.timer_callback)
         self.pub_table_down = self.create_publisher(String,'/elevator_down',1)
@@ -97,6 +99,11 @@ class RobotStateMachine(Node):
             self.get_logger().error(f"Error getting transform: {str(e)}")
             return None
 
+
+    def send_message(self, msg):
+        print(msg)
+        self.status_msg.data = msg
+        self.status_msg_pub.publish(self.status_msg)
 
     def pick_table_1_cb(self, msg):
         print('Table One Pick Activate')
@@ -202,6 +209,7 @@ class RobotStateMachine(Node):
     # elevator down function
     def down_table(self):
         print('Down table')
+        self.send_message("Elevator Dropping")
         msg_pub = String()
         msg_pub.data = ""
         for i in range(0,5):
@@ -282,78 +290,159 @@ class RobotStateMachine(Node):
         self.nav.waitUntilNav2Active()
 
     # Goes to the position of the given stage
-    def go_to_pose(self, stages, stage_name):
-        self.goal_pose.header.frame_id = 'map'
-        self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
-        self.goal_pose.pose.position.x = stages[stage_name][0]
-        self.goal_pose.pose.position.y = stages[stage_name][1]
-        self.goal_pose.pose.orientation.z = stages[stage_name][2]
-        self.goal_pose.pose.orientation.w = stages[stage_name][3]
-        self.nav.goToPose(self.goal_pose)
+    # def go_to_pose(self, stages, stage_name):
+    #     self.goal_pose.header.frame_id = 'map'
+    #     self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
+    #     self.goal_pose.pose.position.x = stages[stage_name][0]
+    #     self.goal_pose.pose.position.y = stages[stage_name][1]
+    #     self.goal_pose.pose.orientation.z = stages[stage_name][2]
+    #     self.goal_pose.pose.orientation.w = stages[stage_name][3]
+    #     self.nav.goToPose(self.goal_pose)
 
-        # Do something during your route
-        # (e.x. queue up future tasks or detect person for fine-tuned positioning)
-        # Print information for workers on the robot's ETA for the demonstration
-        i = 0
-        while not self.nav.isTaskComplete():
-            i = i + 1
-            feedback = self.nav.getFeedback()
-            if feedback and i % 10 == 0:
-                print('Time left to reach ' + stage_name + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+    #     # Do something during your route
+    #     # (e.x. queue up future tasks or detect person for fine-tuned positioning)
+    #     # Print information for workers on the robot's ETA for the demonstration
+    #     i = 0
+    #     while not self.nav.isTaskComplete():
+    #         i = i + 1
+    #         feedback = self.nav.getFeedback()
+    #         if feedback and i % 10 == 0:
+    #             self.send_message('Time left to reach ' + stage_name + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+    #             print('Time left to reach ' + stage_name + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
         
-        result = self.nav.getResult()
-        if result == TaskResult.SUCCEEDED:
-            print('Reached (' + stage_name + ')...')
+    #     result = self.nav.getResult()
+    #     if result == TaskResult.SUCCEEDED:
+    #         self.send_message('Reached (' + stage_name + ')...')
+    #         print('Reached (' + stage_name + ')...')
 
 
-        elif result == TaskResult.CANCELED:
-            print('Task at ' + stage_name  +
-                ' was canceled. Returning to staging point...')
-            exit(-1)
+    #     elif result == TaskResult.CANCELED:
+    #         print('Task at ' + stage_name  +
+    #             ' was canceled. Returning to staging point...')
+    #         exit(-1)
 
-        elif result == TaskResult.FAILED:
-            print('Task at ' + stage_name + ' failed!')
-            exit(-1)
+    #     elif result == TaskResult.FAILED:
+    #         print('Task at ' + stage_name + ' failed!')
+    #         exit(-1)
 
-        while not self.nav.isTaskComplete():
-            pass
+    #     while not self.nav.isTaskComplete():
+    #         pass
 
-    def go_to_table_pose(self, x, y, rotation):
-        self.goal_pose.header.frame_id = 'map'
-        self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
-        self.goal_pose.pose.position.x = x
-        self.goal_pose.pose.position.y = y
-        # self.goal_pose.pose.orientation.z = 0.0
-        # self.goal_pose.pose.orientation.w = 1.0
-        self.goal_pose.pose.orientation = rotation
-        self.nav.goToPose(self.goal_pose)
+    def go_to_pose(self, stages, stage_name, max_retries=3):
+        for attempt in range(1, max_retries + 1):
+            self.goal_pose.header.frame_id = 'map'
+            self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
+            self.goal_pose.pose.position.x = stages[stage_name][0]
+            self.goal_pose.pose.position.y = stages[stage_name][1]
+            self.goal_pose.pose.orientation.z = stages[stage_name][2]
+            self.goal_pose.pose.orientation.w = stages[stage_name][3]
+            self.nav.goToPose(self.goal_pose)
 
-        # Do something during your route
-        # (e.x. queue up future tasks or detect person for fine-tuned positioning)
-        # Print information for workers on the robot's ETA for the demonstration
-        i = 0
-        while not self.nav.isTaskComplete():
-            i = i + 1
-            feedback = self.nav.getFeedback()
-            if feedback and i % 10 == 0:
-                print('Time left to reach ' + 'pre_table' + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+            i = 0
+            while not self.nav.isTaskComplete():
+                i += 1
+                feedback = self.nav.getFeedback()
+                if feedback and i % 10 == 0:
+                    self.send_message('Time left to reach ' + stage_name + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+                    print('Time left to reach ' + stage_name + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+
+            result = self.nav.getResult()
+            if result == TaskResult.SUCCEEDED:
+                self.send_message('Reached (' + stage_name + ')...')
+                print('Reached (' + stage_name + ')...')
+                break  # Break the retry loop if the task succeeds
+            elif result == TaskResult.CANCELED:
+                self.send_message(f'Task at {stage_name} was canceled. Exiting...')
+                print(f'Task at {stage_name} was canceled. Exiting...')
+                exit(-1)
+            else:
+                self.send_message(f'Task attempt {attempt} at {stage_name} failed.')
+                print(f'Task attempt {attempt} at {stage_name} failed.')
+
+            if attempt < max_retries:
+                self.send_message(f'Retrying... (Attempt {attempt + 1}/{max_retries})')
+                print(f'Retrying... (Attempt {attempt + 1}/{max_retries})')
+            else:
+                self.send_message('Max retries reached. Exiting...')
+                print('Max retries reached. Exiting...')
+                exit(-1)
+
+
+    # def go_to_table_pose(self, x, y, rotation):
+    #     self.goal_pose.header.frame_id = 'map'
+    #     self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
+    #     self.goal_pose.pose.position.x = x
+    #     self.goal_pose.pose.position.y = y
+    #     # self.goal_pose.pose.orientation.z = 0.0
+    #     # self.goal_pose.pose.orientation.w = 1.0
+    #     self.goal_pose.pose.orientation = rotation
+    #     self.nav.goToPose(self.goal_pose)
+
+    #     # Do something during your route
+    #     # (e.x. queue up future tasks or detect person for fine-tuned positioning)
+    #     # Print information for workers on the robot's ETA for the demonstration
+    #     i = 0
+    #     while not self.nav.isTaskComplete():
+    #         i = i + 1
+    #         feedback = self.nav.getFeedback()
+    #         if feedback and i % 10 == 0:
+    #             print('Time left to reach ' + 'pre_table' + ' : ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
         
-        result = self.nav.getResult()
-        if result == TaskResult.SUCCEEDED:
-            print('Reached (' + 'pre_table' + ')...')
+    #     result = self.nav.getResult()
+    #     if result == TaskResult.SUCCEEDED:
+    #         print('Reached (' + 'pre_table' + ')...')
 
 
-        elif result == TaskResult.CANCELED:
-            print('Task at ' + 'pre_table'  +
-                ' was canceled. Returning to staging point...')
-            exit(-1)
+    #     elif result == TaskResult.CANCELED:
+    #         print('Task at ' + 'pre_table'  +
+    #             ' was canceled. Returning to staging point...')
+    #         exit(-1)
 
-        elif result == TaskResult.FAILED:
-            print('Task at ' + 'pre_table' + ' failed!')
-            exit(-1)
+    #     elif result == TaskResult.FAILED:
+    #         print('Task at ' + 'pre_table' + ' failed!')
+    #         exit(-1)
 
-        while not self.nav.isTaskComplete():
-            pass
+    #     while not self.nav.isTaskComplete():
+    #         pass
+
+    def go_to_table_pose(self, x, y, rotation, max_retries=3):
+        for attempt in range(1, max_retries + 1):
+            self.goal_pose.header.frame_id = 'map'
+            self.goal_pose.header.stamp = self.nav.get_clock().now().to_msg()
+            self.goal_pose.pose.position.x = x
+            self.goal_pose.pose.position.y = y
+            self.goal_pose.pose.orientation = rotation
+            self.nav.goToPose(self.goal_pose)
+
+            i = 0
+            while not self.nav.isTaskComplete():
+                i += 1
+                feedback = self.nav.getFeedback()
+                if feedback and i % 10 == 0:
+                    self.send_message('Time left to reach pre_table: ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+                    print('Time left to reach pre_table: ' + '{0:.0f}'.format(Duration.from_msg(feedback.estimated_time_remaining).nanoseconds / 1e9) + ' seconds.')
+
+            result = self.nav.getResult()
+            if result == TaskResult.SUCCEEDED:
+                self.send_message('Reached (pre_table)...')
+                print('Reached (pre_table)...')
+                break  # Break the retry loop if the task succeeds
+            elif result == TaskResult.CANCELED:
+                self.send_message(f'Task at pre_table was canceled. Exiting...')
+                print(f'Task at pre_table was canceled. Exiting...')
+                exit(-1)
+            else:
+                self.send_message(f'Task attempt {attempt} at pre_table failed.')
+                print(f'Task attempt {attempt} at pre_table failed.')
+
+            if attempt < max_retries:
+                self.send_message(f'Retrying... (Attempt {attempt + 1}/{max_retries})')
+                print(f'Retrying... (Attempt {attempt + 1}/{max_retries})')
+            else:
+                self.send_message('Max retries reached. Exiting...')
+                print('Max retries reached. Exiting...')
+                exit(-1)
+
     
 
     def with_table_backup_1(self, turn=True):
@@ -460,6 +549,7 @@ class RobotStateMachine(Node):
 
     def table_backward_2(self):
         print("Backing up")
+        self.send_message("Backing up with Table for 10 seconds")
         msg = Twist()
         duration = Duration(seconds=10) # setting the time decides the backup distance #7
         rate = self.create_rate(10, self.get_clock())
@@ -483,6 +573,7 @@ class RobotStateMachine(Node):
     
     def table_backward(self):
         print("Backing up")
+        self.send_message("Backing up with Table for 7 seconds")
         msg = Twist()
         duration = Duration(seconds=7) # setting the time decides the backup distance #7
         rate = self.create_rate(10, self.get_clock())
@@ -506,6 +597,7 @@ class RobotStateMachine(Node):
 
     def robot_backward(self):
         print("Backing up")
+        self.send_message("Robot getting out of the Table!!")
         msg = Twist()
         duration = Duration(seconds=5) # setting the time decides the backup distance #7
         rate = self.create_rate(10, self.get_clock())
@@ -647,30 +739,36 @@ class RobotStateMachine(Node):
             #     self.goal_reached = True
             
             if self.stage_number == 1:
+                self.send_message("Table Picking Activated.... Localising and proceeding to Potential Region 1.")
                 self.set_init_pose()
                 self.rotate_robot()
                 self.go_to_pose(self.robot_stage, "loading_stage_1")
                 # self.rotate_robot()
                 # self.go_to_pose(self.robot_stage, "loading_stage_2")
                 # self.goal_reached = True
-                time.sleep(7)
+                self.send_message("Stabilising to start searching for table. Please Wait!")
+                time.sleep(4)
+                self.send_message("Table search Started")
                 max_tries = 5
                 for try_count in range(1, max_tries + 1):
                     response = self.send_find_request(True, 1)
                     print(response)
                     
                     if (response.found):
+                        self.send_message("Table Found... Proceeding in front of table legs")
                         transform_x, transform_y, rotate = self.get_map_to_pre_loading_frame_transform()
                         self.go_to_table_pose(transform_x, transform_y, rotate)
                         self.stage_number= 15
                         break  # Exit the loop if successful
                     else:
+                        self.send_message(f"Table not detected in trial {try_count}. Retrying....")
                         print(f"Try {try_count} failed.")
                     
                     time.sleep(5)
 
                     if try_count == max_tries:
                         self.stage_number = 6
+                        self.send_message("No Table Found after 5 tries...")
                         print("Maximum number of tries reached. Exiting.")
 
                 # response = self.send_find_request(True)
@@ -692,7 +790,9 @@ class RobotStateMachine(Node):
                 #             self.go_to_table_pose(transform_x, transform_y, rotate)
 
             elif self.stage_number == 15:
+                self.send_message("Waiting for 5 seconds before approaching.")
                 time.sleep(5)
+                self.send_message("Approaching Table.")
                 response2 = self.send_attach_request(True)
                 print(response2)
                 time.sleep(3)
@@ -716,11 +816,15 @@ class RobotStateMachine(Node):
                 self.stage_number = 5
             elif self.stage_number==5:
                 self.go_to_pose(self.robot_stage, "initial_stage")
+                # self.send_message("Localising and proceeding to Potential Region 2.")
                 time.sleep(1)
                 self.set_init_pose()
                 self.rotate_robot()
                 self.stage_number = 6
+                self.send_message("On Standby....")
+                self.goal_reached = True
             elif self.stage_number==6:
+                self.send_message("Proceeding to Potential region 2.")
                 self.go_to_pose(self.robot_stage, "loading_stage_2")
                 max_tries = 5
                 for try_count in range(1, max_tries + 1):
@@ -728,20 +832,24 @@ class RobotStateMachine(Node):
                     print(response)
                     
                     if (response.found):
+                        self.send_message("Table Found... Proceeding in front of table legs")
                         transform_x, transform_y, rotate = self.get_map_to_pre_loading_frame_transform()
                         self.go_to_table_pose(transform_x, transform_y, rotate)
                         self.stage_number = 16
                         break  # Exit the loop if successful
                     else:
                         print(f"Try {try_count} failed.")
+                        self.send_message(f"Table not detected in trial {try_count}. Retrying....")
                     
                     time.sleep(5)
 
                     if try_count == max_tries:
                         self.stage_number = 7
                         print("Maximum number of tries reached. Exiting.")
+                        self.send_message("No Table Found after 5 tries...")
                 
             elif self.stage_number==7:
+                self.send_message("Proceeding to Potentoial Region 3")
                 self.go_to_pose(self.robot_stage, "loading_stage_3")
                 max_tries = 5
                 for try_count in range(1, max_tries + 1):
@@ -749,48 +857,53 @@ class RobotStateMachine(Node):
                     print(response)
                     
                     if (response.found):
+                        self.send_message("Table Found... Proceeding in front of table legs")
                         transform_x, transform_y, rotate = self.get_map_to_pre_loading_frame_transform()
                         self.go_to_table_pose(transform_x, transform_y, rotate)
                         self.stage_number = 17
                         break  # Exit the loop if successful
                     else:
                         print(f"Try {try_count} failed.")
+                        self.send_message(f"Table not detected in trial {try_count}. Retrying....")
                     
                     time.sleep(5)
 
                     if try_count == max_tries:
                         self.stage_number = 8
                         print("Maximum number of tries reached. Exiting.")  
+                        self.send_message("No Table Found after 5 tries...")
             
             elif self.stage_number == 16:
+                self.send_message("Approaching Table")
                 time.sleep(5)
                 response2 = self.send_attach_request(True)
                 print(response2)
                 time.sleep(3)
-                self.stage_number = 2
+                self.stage_number = 20
                 # self.goal_reached=True
-            elif self.stage_number == 2:
-                self.table_backward_2()
+            elif self.stage_number == 20:
+                self.table_backward()
                 time.sleep(2)
-                self.stage_number = 3
-            elif self.stage_number == 3:
+                self.stage_number = 30
+            elif self.stage_number == 30:
                 self.go_to_pose(self.robot_stage, "door_stage")
                 time.sleep(1)
                 self.go_to_pose(self.robot_stage, "last_stage_1")
                 time.sleep(1)
                 self.down_table()
                 time.sleep(6)
-                self.stage_number=4
-            elif self.stage_number==4:
+                self.stage_number=40
+            elif self.stage_number==40:
                 self.robot_backward()
-                self.stage_number = 5
-            elif self.stage_number==5:
+                self.stage_number = 50
+            elif self.stage_number==50:
                 self.go_to_pose(self.robot_stage, "initial_stage")
                 time.sleep(1)
                 self.set_init_pose()
                 self.rotate_robot()
-                self.stage_number = 7      
-                # self.goal_reached=True
+                self.stage_number = 70
+                self.send_message("On Standby")      
+                self.goal_reached=True
 
             elif self.stage_number == 17:
                 time.sleep(5)
@@ -819,7 +932,8 @@ class RobotStateMachine(Node):
                 time.sleep(1)
                 self.set_init_pose()
                 # self.rotate_robot()
-                # self.stage_number = 7      
+                self.stage_number = 80      
+                self.send_message("On Standby") 
                 self.goal_reached=True
     
     def control_loop_2(self):

@@ -45,6 +45,7 @@ class FinalApproachService : public rclcpp::Node
             elevator_pub_ = this->create_publisher<std_msgs::msg::String>("/elevator_up", 1);
             // robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/diffbot_base_controller/cmd_vel_unstamped", 1);
             robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/turtlebot_5/cmd_vel", 1);
+            msg_pub_ = this->create_publisher<std_msgs::msg::String>("/status_msg", 10);
             // robot_cmd_vel_publisher = this->create_publisher<geometry_msgs::msg::Twist>("/cleaner_2/cmd_vel", 1);
             tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
             tf_buffer_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -58,6 +59,7 @@ class FinalApproachService : public rclcpp::Node
     private:
         rclcpp::Service<attach_table::srv::GoToLoading>::SharedPtr approach_server_;
         rclcpp::Publisher<std_msgs::msg::String>::SharedPtr elevator_pub_;
+        rclcpp::Publisher<std_msgs::msg::String>::SharedPtr msg_pub_;
         rclcpp::Subscription<slg_msgs::msg::Centroids>::SharedPtr centroid_sub_;
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
         rclcpp::CallbackGroup::SharedPtr centroid_callback_group_;
@@ -330,6 +332,7 @@ class FinalApproachService : public rclcpp::Node
             double maxAllowedDifference = 0.3;  // Adjust this threshold based on your requirement
             double lastPublishedX = this->x;
             double lastPublishedY = this->y;
+            auto messg = std_msgs::msg::String();
             rclcpp::Rate loop_rate(100);
             while(!final_goal)
             {   
@@ -387,11 +390,14 @@ class FinalApproachService : public rclcpp::Node
                         }
                         else if (error_distance < 0.2 && std::abs(error_yaw) < 0.1){
                             reached_table =true;
+                            
                             while (std::abs(error_orientation)>0.05)
                             {   
-
+                                messg.data = "Correcting Orientation";
+                                msg_pub_->publish(messg);
                                 // Recalculate the transform inside the loop
                                 try {
+
                                     geometry_msgs::msg::TransformStamped transform;
                                     transform = tf_buffer_->lookupTransform("turtlebot_5_base_link", "new_frame", tf2::TimePoint(), tf2::durationFromSec(1.0));
 
@@ -428,6 +434,8 @@ class FinalApproachService : public rclcpp::Node
                             // }
                         }
                         else if (!reached_table){
+                            messg.data = "Approaching Table Front";
+                            msg_pub_->publish(messg);
                             RCLCPP_INFO(this->get_logger(), "GOING TO TABLE");
                             RCLCPP_INFO(this->get_logger(),"error_d : %f", error_distance);
                             RCLCPP_INFO(this->get_logger(),"error_y : %f", error_yaw);
@@ -436,6 +444,8 @@ class FinalApproachService : public rclcpp::Node
                             robot_cmd_vel_publisher->publish(twist);
                         }
                         else {
+                            messg.data = "Reached Table front and Orientation Corrected";
+                            msg_pub_->publish(messg);
                             twist.linear.x = 0.0;
                             twist.angular.z = 0.0;
                             robot_cmd_vel_publisher->publish(twist);
@@ -450,6 +460,8 @@ class FinalApproachService : public rclcpp::Node
                 else if (should_set_final_goal)
                 {   
                     // final_goal=true;
+                    messg.data = "Approaching Table Centre";
+                    msg_pub_->publish(messg);
                     RCLCPP_INFO(this->get_logger(), "GOING FORWARD AFTER CORRECTION");
                     
                     rclcpp::Time start_time = this->now();
@@ -466,7 +478,8 @@ class FinalApproachService : public rclcpp::Node
                         robot_cmd_vel_publisher->publish(default_twist);
                         small.sleep();
                     }
-
+                    messg.data = "Waiting 3 seconds";
+                    msg_pub_->publish(messg);
                     // Stop the robot after 3 seconds
                     geometry_msgs::msg::Twist stop_twist;
                     stop_twist.linear.x = 0.0;
@@ -521,6 +534,7 @@ class FinalApproachService : public rclcpp::Node
 
         void approach_callback(const std::shared_ptr<attach_table::srv::GoToLoading::Request> req, const std::shared_ptr<attach_table::srv::GoToLoading::Response> res) 
         {
+            auto messg = std_msgs::msg::String();
             bool attach_action = req->attach_to_table;
             // this->table_number = req->table_number;
             if (attach_action)
@@ -536,6 +550,8 @@ class FinalApproachService : public rclcpp::Node
                     controlLoop();
                     RCLCPP_INFO(this->get_logger(),"Elevator going up.");
                     std::this_thread::sleep_for(std::chrono::seconds(5));
+                    messg.data = "Elevator Lifting up";
+                    msg_pub_->publish(messg);
                     auto message = std_msgs::msg::String();
                     message.data = "";
                     elevator_pub_->publish(message);
